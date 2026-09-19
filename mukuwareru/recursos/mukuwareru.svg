@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- Icono de la aplicacion: el anillo del Pomodoro.
+       Deliberadamente simple: tiene que leerse a 16 px en la barra de tareas. -->
+  <rect x="0" y="0" width="256" height="256" rx="56" fill="#17171A"/>
+  <rect x="4" y="4" width="248" height="248" rx="52" fill="none" stroke="#2E2E34" stroke-width="4"/>
+  <circle cx="128" cy="132" r="66" fill="none" stroke="#2A2A30" stroke-width="20"/>
+  <circle cx="128" cy="132" r="66" fill="none" stroke="#E5484D" stroke-width="20"
+          stroke-linecap="round" stroke-dasharray="311 415" transform="rotate(-90 128 132)"/>
+  <path d="M128 96v36l26 18" fill="none" stroke="#EDEDEF" stroke-width="14"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

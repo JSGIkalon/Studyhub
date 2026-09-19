@@ -1,0 +1,48 @@
+[project]
+name = "mukuwareru"
+version = "1.2.0"
+description = "Centro de estudio personal, multi-proyecto y completamente offline."
+requires-python = ">=3.12"
+dependencies = [
+    "PySide6==6.11.1",
+    "openpyxl==3.1.5",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["mukuwareru*"]
+
+[tool.setuptools.package-data]
+"mukuwareru.nucleo.bd.migraciones" = ["*.sql"]
+"mukuwareru.ui.tema" = ["*.qss"]
+"mukuwareru.recursos" = ["iconos/*.svg", "fuentes/*", "*.svg", "*.png", "*.ico"]
+
+# ---------------------------------------------------------------------------
+# Herramientas de desarrollo
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# N (pep8-naming) esta activo a proposito: obliga a marcar con `noqa: N802` los
+# metodos cuyo nombre impone la API de Qt, en vez de dejarlos pasar en silencio.
+# BLE (blind-except) obliga a justificar cada `except Exception`, que solo es
+# aceptable en la frontera de la interfaz.
+select = ["E", "F", "I", "N", "UP", "B", "BLE", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["mukuwareru"]
+
+# El nucleo es codigo puro: se exige tipado estricto.
+[[tool.mypy.overrides]]
+module = "mukuwareru.nucleo.*"
+strict = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

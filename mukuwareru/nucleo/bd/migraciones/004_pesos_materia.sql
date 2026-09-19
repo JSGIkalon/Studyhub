@@ -1,0 +1,22 @@
+-- ---------------------------------------------------------------------------
+-- 004 · Peso por asignatura
+--
+-- El progreso por conteo de modulos trata igual a Ethics (17,5 % del examen)
+-- que a Derivatives (6,5 %). Con `materia.peso` el avance puede ponderarse por
+-- lo que cada asignatura pesa de verdad.
+--
+-- El peso es un numero RELATIVO, no un porcentaje: la aplicacion normaliza
+-- dividiendo entre la suma del proyecto. Asi el usuario puede escribir 3 / 2 / 1
+-- en un master y 17,1 / 12,2 / … en el CFA sin tener que cuadrar nada a mano, y
+-- anadir una materia nueva no obliga a recalcular las demas.
+--
+-- Cero significa «sin peso», que es el valor de toda materia ya existente: sin
+-- tocar nada, el progreso sigue siendo exactamente el de siempre. La ponderacion
+-- solo entra en juego cuando el usuario escribe algun peso.
+--
+-- No hay peso por modulo, y es deliberado: dentro de una asignatura los modulos
+-- se reparten su peso por igual. Ponderar tambien ahi convertiria marcar una
+-- casilla en un ejercicio de contabilidad.
+-- ---------------------------------------------------------------------------
+
+ALTER TABLE materia ADD COLUMN peso REAL NOT NULL DEFAULT 0;

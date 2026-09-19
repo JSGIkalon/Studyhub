@@ -1,0 +1,28 @@
+# Datos del usuario: nunca se versionan.
+datos/
+Library/
+logs/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Herramientas
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Build
+build/
+dist/
+herramientas/Instalador/
+
+# Material de trabajo local: no se versiona.
+*.xlsx
+Imagen.jpg
+
+# Configuracion local de Claude Code
+.claude/settings.local.json

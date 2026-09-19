@@ -1,0 +1,625 @@
+/* ---------------------------------------------------------------------------
+ * Tema oscuro de Mukuwareru.
+ * Plantilla: los marcadores {{TOKEN}} se sustituyen desde tokens.py al arrancar.
+ * Sin transparencias, sin animaciones. La prioridad es la velocidad.
+ * ------------------------------------------------------------------------ */
+
+QWidget {
+    background-color: {{FONDO}};
+    color: {{TEXTO}};
+    font-family: "{{FUENTE}}";
+    font-size: {{TAM_BASE}}px;
+}
+
+QToolTip {
+    background-color: {{SUPERFICIE_ALTA}};
+    color: {{TEXTO}};
+    border: 1px solid {{BORDE}};
+    padding: 4px 8px;
+}
+
+/* --- Barra lateral ------------------------------------------------------ */
+
+#BarraLateral {
+    background-color: {{FONDO_LATERAL}};
+    border-right: 1px solid {{BORDE_SUTIL}};
+}
+
+#BarraLateral QLabel {
+    background-color: transparent;
+}
+
+#TituloApp {
+    font-size: 17px;
+    font-weight: 600;
+}
+
+#SubtituloApp,
+#EtiquetaSeccion {
+    color: {{TEXTO_TENUE}};
+    font-size: {{TAM_PEQUENO}}px;
+}
+
+#EtiquetaSeccion {
+    font-weight: 600;
+    letter-spacing: 1px;
+}
+
+/* Elementos de navegacion y de proyecto: mismo boton, distinto contenedor. */
+QPushButton#ElementoNav {
+    background-color: transparent;
+    border: none;
+    border-radius: {{RADIO_PEQUENO}}px;
+    color: {{TEXTO_SUAVE}};
+    padding: 8px 10px;
+    text-align: left;
+}
+
+QPushButton#ElementoNav:hover {
+    background-color: {{SUPERFICIE_ALTA}};
+    color: {{TEXTO}};
+}
+
+QPushButton#ElementoNav:checked {
+    background-color: {{ACENTO_TENUE}};
+    color: {{TEXTO}};
+    font-weight: 600;
+}
+
+QPushButton#BotonNuevoProyecto {
+    background-color: transparent;
+    border: none;
+    border-radius: {{RADIO_PEQUENO}}px;
+    color: {{TEXTO_TENUE}};
+    padding: 7px 10px;
+    text-align: left;
+}
+
+QPushButton#BotonNuevoProyecto:hover {
+    background-color: {{SUPERFICIE_ALTA}};
+    color: {{TEXTO}};
+}
+
+/* --- Tarjeta de cuenta atras (pie de la barra lateral) ------------------- */
+
+#TarjetaExamen {
+    background-color: {{SUPERFICIE}};
+    border: 1px solid {{BORDE}};
+    border-radius: {{RADIO}}px;
+}
+
+#TarjetaExamen QLabel {
+    background-color: transparent;
+}
+
+#ExamenTitulo {
+    font-weight: 600;
+}
+
+#ExamenFecha {
+    color: {{TEXTO_SUAVE}};
+    font-size: {{TAM_PEQUENO}}px;
+}
+
+#ExamenDias {
+    color: {{ACENTO}};
+    font-size: 24px;
+    font-weight: 700;
+}
+
+/* --- Reloj compacto del Pomodoro en la barra lateral --------------------- */
+
+#MiniPomodoroBarra {
+    background-color: {{SUPERFICIE}};
+    border: 1px solid {{BORDE}};
+    border-radius: {{RADIO}}px;
+}
+
+#MiniPomodoroBarra QLabel {
+    background-color: transparent;
+}
+
+#MiniBarraFase {
+    font-size: {{TAM_PEQUENO}}px;
+    letter-spacing: 1px;
+}
+
+#MiniBarraTiempo {
+    font-variant-numeric: tabular-nums;
+}
+
+QPushButton#MiniBarraBoton {
+    background-color: transparent;
+    border: 1px solid {{BORDE}};
+    border-radius: {{RADIO_PEQUENO}}px;
+    color: {{TEXTO_SUAVE}};
+    font-size: {{TAM_PEQUENO}}px;
+    padding: 0 8px;
+}
+
+QPushButton#MiniBarraBoton:hover {
+    background-color: {{SUPERFICIE_ALTA}};
+    color: {{TEXTO}};
+}
+
+/* --- Contraer la barra lateral ------------------------------------------- */
+
+QPushButton#BotonColapsar {
+    background-color: transparent;
+    border: none;
+    border-radius: {{RADIO_PEQUENO}}px;
+    color: {{TEXTO_TENUE}};
+    font-size: 15px;
+}
+
+QPushButton#BotonColapsar:hover {
+    background-color: {{SUPERFICIE_ALTA}};
+    color: {{TEXTO}};
+}
+
+/* --- Superficies de contenido ------------------------------------------- */
+
+/* Contenedores que solo alojan una disposicion: nunca pintan fondo propio.
+ * Ver mukuwareru/ui/widgets/contenedor.py. */
+#Transparente {
+    background-color: transparent;
+}
+
+#Tarjeta {
+    background-color: {{SUPERFICIE}};
+    border: 1px solid {{BORDE}};
+    border-radius: {{RADIO}}px;
+}
+
+#Tarjeta QLabel {
+    background-color: transparent;
+}
+
+#TituloVista {
+    font-size: {{TAM_TITULO}}px;
+    font-weight: 600;
+}
+
+#TextoSuave {
+    color: {{TEXTO_SUAVE}};
+}
+
+#TextoTenue {
+    color: {{TEXTO_TENUE}};
+    font-size: {{TAM_PEQUENO}}px;
+}
+
+/* Una tecla del manual de atajos: se lee como una tecla, no como texto suelto. */
+#Tecla {
+    color: {{TEXTO}};
+    background-color: {{SUPERFICIE_ALTA}};
+    border: 1px solid {{BORDE}};
+    border-radius: {{RADIO_PEQUENO}}px;
+    padding: 2px 6px;
+    font-size: {{TAM_PEQUENO}}px;
+    font-weight: 600;
+}
+
+/* --- Barra de estado ---------------------------------------------------- */
+
+#BarraEstado {
+    background-color: {{FONDO_LATERAL}};
+    border-top: 1px solid {{BORDE_SUTIL}};
+    color: {{TEXTO_TENUE}};
+    font-size: {{TAM_PEQUENO}}px;
+}
+
+#BarraEstado QLabel {
+    background-color: transparent;
+    color: {{TEXTO_TENUE}};
+}
+
+/* --- Controles ---------------------------------------------------------- */
+
+QPushButton {
+    background-color: {{SUPERFICIE_ALTA}};
+    border: 1px solid {{BORDE}};
+    border-radius: {{RADIO_PEQUENO}}px;
+    padding: 7px 14px;
+}
+
+QPushButton:hover {
+    border-color: {{TEXTO_TENUE}};
+}
+
+QPushButton:disabled {
+    color: {{TEXTO_TENUE}};
+}
+
+QPushButton#BotonPrimario {
+    background-color: {{ACENTO}};
+    border: none;
+    color: #FFFFFF;
+    font-weight: 600;
+}
+
+QPushButton#BotonPrimario:hover {
+    background-color: {{ACENTO_HOVER}};
+}
+
+QLineEdit,
+QComboBox,
+QSpinBox,
+QDateEdit,
+QPlainTextEdit,
+QTextEdit {
+    background-color: {{SUPERFICIE_ALTA}};
+    border: 1px solid {{BORDE}};
+    border-radius: {{RADIO_PEQUENO}}px;
+    padding: 6px 8px;
+    selection-background-color: {{ACENTO}};
+}
+
+QLineEdit:focus,
+QComboBox:focus,
+QSpinBox:focus,
+QDateEdit:focus,
+QPlainTextEdit:focus,
+QTextEdit:focus {
+    border-color: {{ACENTO}};
+}
+
+QComboBox QAbstractItemView {
+    background-color: {{SUPERFICIE_ALTA}};
+    border: 1px solid {{BORDE}};
+    selection-background-color: {{ACENTO_TENUE}};
+}
+
+/* Una casilla nunca pinta fondo propio: heredaria FONDO y dibujaria una banda
+ * mas oscura sobre la tarjeta que la contiene. */
+QCheckBox {
+    background-color: transparent;
+    spacing: 8px;
+}
+
+QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    border: 1px solid {{BORDE}};
+    border-radius: 4px;
+    background-color: {{SUPERFICIE_ALTA}};
+}
+
+QCheckBox::indicator:checked {
+    background-color: {{EXITO}};
+    border-color: {{EXITO}};
+}
+
+/* --- Vistas de lista y arbol -------------------------------------------- */
+
+QListView,
+QTreeView,
+QTableView {
+    background-color: {{SUPERFICIE}};
+    border: 1px solid {{BORDE}};
+    border-radius: {{RADIO}}px;
+    outline: none;
+}
+
+QListView::item,
+QTreeView::item {
+    padding: 6px;
+    border-radius: {{RADIO_PEQUENO}}px;
+}
+
+QListView::item:hover,
+QTreeView::item:hover {
+    background-color: {{SUPERFICIE_ALTA}};
+}
+
+QListView::item:selected,
+QTreeView::item:selected {
+    background-color: {{ACENTO_TENUE}};
+    color: {{TEXTO}};
+}
+
+/* --- Mini ventana del Pomodoro ------------------------------------------ */
+
+/* Sin marco propio del sistema: el borde lo pinta la hoja de estilos. */
+#MiniPomodoro {
+    background-color: {{SUPERFICIE}};
+    border: 1px solid {{BORDE}};
+    border-radius: {{RADIO}}px;
+    min-width: 170px;
+}
+
+#MiniPomodoro QLabel {
+    background-color: transparent;
+}
+
+#MiniFase {
+    letter-spacing: 1px;
+}
+
+#MiniTiempo {
+    font-variant-numeric: tabular-nums;
+}
+
+QPushButton#MiniCerrar {
+    background-color: transparent;
+    border: none;
+    color: {{TEXTO_TENUE}};
+    font-size: 15px;
+    padding: 0;
+}
+
+QPushButton#MiniCerrar:hover {
+    background-color: {{SUPERFICIE_ALTA}};
+    color: {{TEXTO}};
+}
+
+/* --- Timeline del Pomodoro ---------------------------------------------- */
+
+/* El estado de un bloque se pinta con la propiedad dinamica `estado`, que la
+ * tarjeta cambia con unpolish/polish. Reescribir la hoja de estilos de un
+ * widget una vez por segundo obliga a Qt a recalcular el arbol entero. */
+
+#Timeline,
+#RielTimeline {
+    background-color: transparent;
+    border: none;
+}
+
+#BloqueTimeline {
+    background-color: {{SUPERFICIE}};
+    border: 1px solid {{BORDE_SUTIL}};
+    border-radius: {{RADIO}}px;
+}
+
+#BloqueTimeline:hover {
+    border-color: {{BORDE}};
+}
+
+#BloqueTimeline[estado="activo"] {
+    background-color: {{SUPERFICIE_ALTA}};
+    border-width: 2px;
+}
+
+/* Trabajo y descanso se distinguen sin leer. El color propio de un bloque lo
+ * lleva el filo que pinta `paintEvent`; el QSS solo sabe de la fase. */
+#BloqueTimeline[estado="activo"][descanso="0"] {
+    border-color: {{ACENTO}};
+}
+
+#BloqueTimeline[estado="activo"][descanso="1"] {
+    border-color: {{INFO}};
+}
+
+#BloqueTimeline[estado="completado"] {
+    background-color: transparent;
+    border-style: dashed;
+    border-color: {{BORDE_SUTIL}};
+}
+
+#BloqueTimeline QLabel {
+    background-color: transparent;
+}
+
+#BloquePastilla {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+#BloqueNombre {
+    color: {{TEXTO}};
+    font-size: 14px;
+    font-weight: 600;
+}
+
+#BloqueTimeline[estado="completado"] #BloqueNombre {
+    color: {{TEXTO_TENUE}};
+}
+
+#BloqueTema {
+    color: {{TEXTO_SUAVE}};
+    font-size: {{TAM_PEQUENO}}px;
+}
+
+#BloqueDuracion {
+    color: {{TEXTO_TENUE}};
+    font-size: {{TAM_PEQUENO}}px;
+}
+
+#BloqueMarca {
+    font-size: {{TAM_PEQUENO}}px;
+    font-variant-numeric: tabular-nums;
+}
+
+#ConectorTimeline {
+    background-color: transparent;
+    color: {{TEXTO_TENUE}};
+    font-size: 16px;
+}
+
+QPushButton#BloqueNuevo {
+    background-color: transparent;
+    border: 1px dashed {{BORDE}};
+    border-radius: {{RADIO}}px;
+    color: {{TEXTO_TENUE}};
+    font-size: 20px;
+    padding: 0;
+}
+
+QPushButton#BloqueNuevo:hover {
+    border-color: {{ACENTO}};
+    color: {{ACENTO}};
+}
+
+#Caminante {
+    background-color: transparent;
+}
+
+/* --- Temas arrastrables ------------------------------------------------- */
+
+#TiraTemas {
+    background-color: transparent;
+    border: none;
+}
+
+QPushButton#ChipTema {
+    background-color: {{SUPERFICIE}};
+    border: 1px solid {{BORDE_SUTIL}};
+    border-radius: 11px;
+    font-size: {{TAM_PEQUENO}}px;
+    padding: 3px 10px;
+}
+
+QPushButton#ChipTema:hover {
+    background-color: {{SUPERFICIE_ALTA}};
+    border-color: {{BORDE}};
+}
+
+/* --- Editor de un bloque ------------------------------------------------ */
+
+#EditorBloque {
+    background-color: {{SUPERFICIE}};
+    border: 1px solid {{BORDE}};
+    border-radius: {{RADIO}}px;
+}
+
+#EditorBloque QLabel {
+    background-color: transparent;
+}
+
+QPushButton#TipoBloque {
+    background-color: transparent;
+    border: 1px solid {{BORDE}};
+    font-size: {{TAM_PEQUENO}}px;
+    padding: 5px 4px;
+}
+
+QPushButton#TipoBloque:checked {
+    background-color: {{ACENTO_TENUE}};
+    border-color: {{ACENTO}};
+    color: {{TEXTO}};
+}
+
+QPushButton#AtajoDuracion {
+    background-color: transparent;
+    border: 1px solid {{BORDE}};
+    color: {{TEXTO_SUAVE}};
+    font-size: {{TAM_PEQUENO}}px;
+    padding: 0 6px;
+}
+
+QPushButton#AtajoDuracion:hover {
+    border-color: {{ACENTO}};
+    color: {{TEXTO}};
+}
+
+/* --- Tirador para devolver la barra lateral ------------------------------ */
+
+QPushButton#TiradorBarra {
+    background-color: {{FONDO_LATERAL}};
+    border: none;
+    border-right: 1px solid {{BORDE_SUTIL}};
+    color: {{TEXTO_TENUE}};
+    font-size: 13px;
+    padding: 0;
+}
+
+QPushButton#TiradorBarra:hover {
+    background-color: {{SUPERFICIE_ALTA}};
+    color: {{TEXTO}};
+}
+
+/* Miniaturas del lector: el papel ya es blanco, asi que la seleccion se marca
+ * con un borde. Un bloque de color detras de la hoja solo ensuciaria. */
+#Miniaturas {
+    background-color: {{FONDO}};
+    border: none;
+}
+
+#Miniaturas::item {
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: {{RADIO_PEQUENO}}px;
+    color: {{TEXTO_TENUE}};
+    font-size: {{TAM_PEQUENO}}px;
+    padding: 0;
+}
+
+#Miniaturas::item:hover {
+    background-color: transparent;
+    border-color: {{BORDE}};
+    color: {{TEXTO_SUAVE}};
+}
+
+#Miniaturas::item:selected {
+    background-color: transparent;
+    border-color: {{ACENTO}};
+    color: {{TEXTO}};
+}
+
+/* --- Barras de desplazamiento ------------------------------------------- */
+
+QScrollBar:vertical {
+    background: transparent;
+    width: 10px;
+    margin: 0;
+}
+
+QScrollBar:horizontal {
+    background: transparent;
+    height: 10px;
+    margin: 0;
+}
+
+QScrollBar::handle:vertical,
+QScrollBar::handle:horizontal {
+    background: {{BORDE}};
+    border-radius: 5px;
+    min-height: 32px;
+    min-width: 32px;
+}
+
+QScrollBar::handle:vertical:hover,
+QScrollBar::handle:horizontal:hover {
+    background: {{TEXTO_TENUE}};
+}
+
+QScrollBar::add-line,
+QScrollBar::sub-line,
+QScrollBar::add-page,
+QScrollBar::sub-page {
+    background: none;
+    border: none;
+    height: 0;
+    width: 0;
+}
+
+/* --- Separadores y pestanas --------------------------------------------- */
+
+QFrame[frameShape="4"],
+QFrame[frameShape="5"] {
+    background-color: {{BORDE_SUTIL}};
+    border: none;
+    max-height: 1px;
+}
+
+QTabWidget::pane {
+    border: 1px solid {{BORDE}};
+    border-radius: {{RADIO}}px;
+}
+
+QTabBar::tab {
+    background: transparent;
+    color: {{TEXTO_SUAVE}};
+    padding: 7px 14px;
+    border: none;
+}
+
+QTabBar::tab:selected {
+    color: {{TEXTO}};
+    border-bottom: 2px solid {{ACENTO}};
+}
+
+QScrollArea {
+    border: none;
+}
