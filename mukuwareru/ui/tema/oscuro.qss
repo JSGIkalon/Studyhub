@@ -150,6 +150,11 @@ QPushButton#BotonColapsar {
     border-radius: {{RADIO_PEQUENO}}px;
     color: {{TEXTO_TENUE}};
     font-size: 15px;
+    /* Sin esto hereda el `padding: 7px 14px` generico de QPushButton, que en
+     * 22 px no deja sitio al chevron: colapsada, el boton de expandir salia
+     * vacio y no habia forma visible de volver a abrir la barra. */
+    padding: 0;
+    min-width: 0;
 }
 
 QPushButton#BotonColapsar:hover {
