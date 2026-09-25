@@ -16,16 +16,10 @@ from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from mukuwareru.nucleo.servicios import Estado, Fase
+from mukuwareru.ui.pomodoro.reloj_compacto import PiezasReloj
 from mukuwareru.ui.tema import tokens
-from mukuwareru.utilidades import formato
 
 _MARGEN_PANTALLA = 24
-
-_COLOR_FASE = {
-    Fase.TRABAJO: tokens.ACENTO,
-    Fase.DESCANSO_CORTO: tokens.INFO,
-    Fase.DESCANSO_LARGO: tokens.EXITO,
-}
 
 
 class MiniPomodoro(QWidget):
@@ -66,8 +60,12 @@ class MiniPomodoro(QWidget):
         cabecera = QHBoxLayout()
         cabecera.setSpacing(tokens.ESPACIO_PEQUENO)
 
-        self._fase = QLabel()
-        self._fase.setObjectName("MiniFase")
+        self._piezas = PiezasReloj()
+        # Alias con los nombres de siempre: los usa la prueba de humo.
+        self._fase = self._piezas.fase
+        self._tiempo = self._piezas.tiempo
+        self._boton = self._piezas.alternar
+        self._boton_detener = self._piezas.detener
         cabecera.addWidget(self._fase, 1)
 
         cerrar = QPushButton("✕")  # cruz de cerrar; el aspa no es una «x»
@@ -79,23 +77,14 @@ class MiniPomodoro(QWidget):
         cabecera.addWidget(cerrar)
         caja.addLayout(cabecera)
 
-        self._tiempo = QLabel()
-        self._tiempo.setObjectName("MiniTiempo")
         caja.addWidget(self._tiempo)
 
         controles = QHBoxLayout()
         controles.setSpacing(tokens.ESPACIO_PEQUENO)
 
-        self._boton = QPushButton()
-        self._boton.setCursor(Qt.CursorShape.PointingHandCursor)
         self._boton.clicked.connect(self.alternar_pedido.emit)
         controles.addWidget(self._boton, 1)
-
-        self._boton_detener = QPushButton("Detener")
-        self._boton_detener.setToolTip("Cierra la sesion y registra el tiempo.")
-        self._boton_detener.setCursor(Qt.CursorShape.PointingHandCursor)
         self._boton_detener.clicked.connect(self.detener_pedido.emit)
-        self._boton_detener.setVisible(False)
         controles.addWidget(self._boton_detener, 1)
         caja.addLayout(controles)
 
@@ -107,9 +96,9 @@ class MiniPomodoro(QWidget):
 
     def actualizar(self, fase: Fase, restante_seg: int, estado: Estado) -> None:
         """Refresca fase, cuenta atras y texto del boton."""
-        self._boton_detener.setVisible(False)
-        self._pista.setText("Doble clic para volver")
-        self._volcar(fase.etiqueta.upper(), restante_seg, estado, _COLOR_FASE[fase])
+        if self._piezas.actualizar(fase, restante_seg, estado):
+            self._pista.setText("Doble clic para volver")
+            self.adjustSize()
 
     def actualizar_libre(self, transcurrido_seg: int, estado: Estado) -> None:
         """Lo mismo para una sesion indefinida: cuenta hacia arriba y se detiene.
@@ -118,17 +107,9 @@ class MiniPomodoro(QWidget):
         llega a cero; esta sesion no acaba hasta que alguien lo dice, y ese
         alguien tiene la ventana principal minimizada.
         """
-        self._boton_detener.setVisible(True)
-        self._pista.setText("Detener registra el tiempo")
-        self._volcar("TRABAJO INDEFINIDO", transcurrido_seg, estado, tokens.ACENTO)
-
-    def _volcar(self, etiqueta: str, segundos: int, estado: Estado, color: str) -> None:
-        self._fase.setText(etiqueta)
-        self._fase.setStyleSheet(f"color: {color}; font-size: 11px; font-weight: 700;")
-        self._tiempo.setText(formato.duracion_reloj(segundos))
-        self._tiempo.setStyleSheet(f"color: {color}; font-size: 30px; font-weight: 700;")
-        self._boton.setText("Pausar" if estado is Estado.CORRIENDO else "Reanudar")
-        self.adjustSize()
+        if self._piezas.actualizar_libre(transcurrido_seg, estado):
+            self._pista.setText("Detener registra el tiempo")
+            self.adjustSize()
 
     def colocar_por_defecto(self) -> None:
         """Esquina inferior derecha, si el usuario no la ha movido todavia."""

@@ -31,7 +31,7 @@ from mukuwareru.ui.dialogos.escenarios import DialogoEscenarios
 from mukuwareru.ui.dialogos.evaluacion import DialogoEvaluacion
 from mukuwareru.ui.tema import tokens
 from mukuwareru.ui.vistas.base import VistaBase
-from mukuwareru.ui.widgets import BarraMateria, GraficoBarras, Tarjeta, contenedor
+from mukuwareru.ui.widgets import BarraMateria, GraficoBarras, Tarjeta, contenedor, vaciar
 from mukuwareru.utilidades import formato
 
 # Con una sola evaluacion no hay evolucion que ensenar: un grafico de una barra
@@ -43,6 +43,8 @@ class VistaResultados(VistaBase):
     """Nota por asignatura, evolucion e historial de examenes."""
 
     titulo = "Resultados"
+    dominio = "resultados"
+    ignora = frozenset({"anotaciones", "documentos", "notas", "sesiones"})
 
     def _construir(self) -> None:
         raiz = QVBoxLayout(self)
@@ -139,10 +141,10 @@ class VistaResultados(VistaBase):
 
     def recargar(self) -> None:
         """Reconstruye las tres tarjetas con los resultados del proyecto activo."""
-        _limpiar(self._caja_asignaturas)
-        _limpiar(self._caja_historial)
+        vaciar(self._caja_asignaturas)
+        vaciar(self._caja_historial)
 
-        _limpiar(self._caja_calculo)
+        vaciar(self._caja_calculo)
 
         proyecto = self.contexto.proyecto
         if proyecto is None:
@@ -441,7 +443,7 @@ class _FilaEvaluacion(QWidget):
         detalle = QVBoxLayout()
         detalle.setSpacing(0)
         titulo = QLabel(evaluacion.titulo)
-        titulo.setStyleSheet("font-weight: 600;")
+        titulo.setProperty("fuerte", True)
         titulo.setWordWrap(True)
         detalle.addWidget(titulo)
 
@@ -526,8 +528,3 @@ def _linea(
         fila.addStretch(1)
     return contenedor(fila)
 
-
-def _limpiar(caja: QVBoxLayout) -> None:
-    while (elemento := caja.takeAt(0)) is not None:
-        if (widget := elemento.widget()) is not None:
-            widget.deleteLater()

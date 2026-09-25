@@ -15,7 +15,7 @@ from __future__ import annotations
 from datetime import date
 
 from PySide6.QtCore import QPoint, Qt, Signal
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QMouseEvent
 from PySide6.QtWidgets import (
     QButtonGroup,
     QFrame,
@@ -32,16 +32,11 @@ from mukuwareru.contexto import Contexto
 from mukuwareru.nucleo.modelos import Hito, Proyecto
 from mukuwareru.nucleo.servicios import Estado, Fase
 from mukuwareru.ui import iconos
+from mukuwareru.ui.pomodoro.reloj_compacto import PiezasReloj
 from mukuwareru.ui.tema import tokens
 from mukuwareru.ui.vistas import SECCIONES
 from mukuwareru.ui.widgets import contenedor
 from mukuwareru.utilidades import formato
-
-_COLOR_FASE = {
-    Fase.TRABAJO: tokens.ACENTO,
-    Fase.DESCANSO_CORTO: tokens.INFO,
-    Fase.DESCANSO_LARGO: tokens.EXITO,
-}
 
 
 class BarraLateral(QWidget):
@@ -60,6 +55,7 @@ class BarraLateral(QWidget):
     eliminar_proyecto = Signal(object)  # Proyecto
     personalizar_pedido = Signal()
     pomodoro_alternado = Signal()
+    pomodoro_detenido = Signal()
     ocultar_pedido = Signal()
 
     def __init__(self, contexto: Contexto, parent: QWidget | None = None) -> None:
@@ -81,7 +77,7 @@ class BarraLateral(QWidget):
         contexto.proyecto_cambiado.connect(self._al_cambiar_proyecto)
         # Crear un hito mas cercano desde el Calendario tiene que mover la
         # cuenta atras sin esperar a cambiar de proyecto.
-        contexto.datos_cambiados.connect(lambda _origen: self.refrescar_cuenta_atras())
+        contexto.datos_cambiados.connect(self._al_cambiar_datos)
 
     # -- Construccion -------------------------------------------------------
 
@@ -120,6 +116,9 @@ class BarraLateral(QWidget):
         raiz.addStretch(1)
         self._mini_pomodoro = _MiniPomodoroBarra()
         self._mini_pomodoro.alternar_pedido.connect(self.pomodoro_alternado.emit)
+        self._mini_pomodoro.detener_pedido.connect(self.pomodoro_detenido.emit)
+        # Clic en el reloj: a la seccion Pomodoro, como el doble clic del flotante.
+        self._mini_pomodoro.ir_pedido.connect(lambda: self.seccion_elegida.emit("pomodoro"))
         raiz.addWidget(self._mini_pomodoro)
         raiz.addSpacing(tokens.ESPACIO_PEQUENO)
         self._tarjeta_examen = _TarjetaExamen()
@@ -348,6 +347,11 @@ class BarraLateral(QWidget):
             boton.setChecked(True)
         self.refrescar_cuenta_atras()
 
+    def _al_cambiar_datos(self, _origen: object, dominio: object) -> None:
+        # La cuenta atras solo depende de los hitos.
+        if dominio in (None, "calendario"):
+            self.refrescar_cuenta_atras()
+
     def refrescar_cuenta_atras(self) -> None:
         """Actualiza la tarjeta con el hito sin completar mas cercano.
 
@@ -429,15 +433,21 @@ class _MiniPomodoroBarra(QFrame):
 
     Cubre el hueco que deja la mini ventana flotante, que solo aparece con la
     aplicacion minimizada. Cambiar de seccion no minimiza la ventana, y aun asi
-    hay que seguir viendo cuanto queda.
+    hay que seguir viendo cuanto queda. Ofrece las mismas acciones que el
+    flotante: pausar, detener una sesion indefinida y volver a Pomodoro.
     """
 
     alternar_pedido = Signal()
+    detener_pedido = Signal()
+    ir_pedido = Signal()
 
     def __init__(self) -> None:
         super().__init__()
         self.setObjectName("MiniPomodoroBarra")
         self.setVisible(False)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip("Ir a Pomodoro")
+        self._piezas = PiezasReloj()
 
         caja = QVBoxLayout(self)
         caja.setContentsMargins(12, 10, 12, 10)
@@ -446,24 +456,26 @@ class _MiniPomodoroBarra(QFrame):
         cabecera = QHBoxLayout()
         cabecera.setSpacing(tokens.ESPACIO_PEQUENO)
 
-        self._fase = QLabel()
-        self._fase.setObjectName("MiniBarraFase")
-        cabecera.addWidget(self._fase, 1)
+        cabecera.addWidget(self._piezas.fase, 1)
 
-        self._boton = QPushButton()
-        self._boton.setObjectName("MiniBarraBoton")
-        self._boton.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._boton.setFixedHeight(20)
-        self._boton.clicked.connect(self.alternar_pedido.emit)
-        cabecera.addWidget(self._boton)
+        for boton, senal in (
+            (self._piezas.alternar, self.alternar_pedido),
+            (self._piezas.detener, self.detener_pedido),
+        ):
+            boton.setObjectName("MiniBarraBoton")
+            boton.setFixedHeight(20)
+            boton.clicked.connect(senal.emit)
+        cabecera.addWidget(self._piezas.alternar)
         caja.addLayout(cabecera)
 
-        self._tiempo = QLabel()
-        self._tiempo.setObjectName("MiniBarraTiempo")
-        caja.addWidget(self._tiempo)
+        fila = QHBoxLayout()
+        fila.setSpacing(tokens.ESPACIO_PEQUENO)
+        fila.addWidget(self._piezas.tiempo, 1)
+        fila.addWidget(self._piezas.detener, 0, Qt.AlignmentFlag.AlignVCenter)
+        caja.addLayout(fila)
 
     def actualizar(self, fase: Fase, restante_seg: int, estado: Estado) -> None:
-        self._volcar(fase.etiqueta.upper(), restante_seg, estado, _COLOR_FASE[fase])
+        self._piezas.actualizar(fase, restante_seg, estado)
 
     def actualizar_libre(self, transcurrido_seg: int, estado: Estado) -> None:
         """Sesion de trabajo indefinida: cuenta hacia arriba.
@@ -471,14 +483,13 @@ class _MiniPomodoroBarra(QFrame):
         Sin esto la barra seguiria ensenando la cuenta atras parada del bloque
         que espera, que no es lo que se esta cronometrando.
         """
-        self._volcar("TRABAJO INDEFINIDO", transcurrido_seg, estado, tokens.ACENTO)
+        self._piezas.actualizar_libre(transcurrido_seg, estado)
 
-    def _volcar(self, etiqueta: str, segundos: int, estado: Estado, color: str) -> None:
-        self._fase.setText(etiqueta)
-        self._fase.setStyleSheet(f"color: {color}; font-size: 10px; font-weight: 700;")
-        self._tiempo.setText(formato.duracion_reloj(segundos))
-        self._tiempo.setStyleSheet(f"color: {color}; font-size: 22px; font-weight: 700;")
-        self._boton.setText("Pausar" if estado is Estado.CORRIENDO else "Reanudar")
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802 (API de Qt)
+        """Un clic fuera de los botones lleva a la seccion Pomodoro."""
+        if event.button() is Qt.MouseButton.LeftButton:
+            self.ir_pedido.emit()
+        super().mouseReleaseEvent(event)
 
 
 def _vaciar(caja: QVBoxLayout, grupo: QButtonGroup) -> None:

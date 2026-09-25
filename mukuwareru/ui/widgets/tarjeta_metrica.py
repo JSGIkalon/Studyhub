@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QFont, QMouseEvent
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 from mukuwareru.ui import iconos
 from mukuwareru.ui.tema import tokens
-from mukuwareru.ui.widgets.contenedor import contenedor
+from mukuwareru.ui.widgets.contenedor import contenedor, vaciar
 from mukuwareru.ui.widgets.tarjeta import Tarjeta
 
 
@@ -61,11 +61,19 @@ class TarjetaMetrica(Tarjeta):
 
 
 class ListaResumen(Tarjeta):
-    """Tarjeta con una lista corta de dos columnas y su estado vacio."""
+    """Tarjeta con una lista corta de dos columnas y su estado vacio.
 
-    def __init__(self, titulo: str, vacio: str, parent: QWidget | None = None) -> None:
+    Con ``pista`` las filas son clicables y emiten ``elegido`` con su indice.
+    """
+
+    elegido = Signal(int)
+
+    def __init__(
+        self, titulo: str, vacio: str, parent: QWidget | None = None, *, pista: str = ""
+    ) -> None:
         super().__init__(titulo, parent)
         self._vacio = vacio
+        self._pista = pista
         self._filas = QVBoxLayout()
         self._filas.setSpacing(2)
         self.contenido.addWidget(contenedor(self._filas))
@@ -73,9 +81,7 @@ class ListaResumen(Tarjeta):
 
     def establecer(self, elementos: list[tuple[str, str]]) -> None:
         """Reemplaza el contenido. Una lista vacia muestra el mensaje de vacio."""
-        while (elemento := self._filas.takeAt(0)) is not None:
-            if (widget := elemento.widget()) is not None:
-                widget.deleteLater()
+        vaciar(self._filas)
 
         if not elementos:
             aviso = QLabel(self._vacio)
@@ -84,11 +90,27 @@ class ListaResumen(Tarjeta):
             self._filas.addWidget(aviso)
             return
 
-        for izquierda, derecha in elementos:
-            self._filas.addWidget(_fila(izquierda, derecha))
+        for indice, (izquierda, derecha) in enumerate(elementos):
+            fila = _fila(izquierda, derecha)
+            if self._pista:
+                fila.setCursor(Qt.CursorShape.PointingHandCursor)
+                fila.setToolTip(self._pista)
+                fila.pulsada.connect(lambda i=indice: self.elegido.emit(i))
+            self._filas.addWidget(fila)
 
 
-def _fila(izquierda: str, derecha: str) -> QWidget:
+class _Fila(QWidget):
+    """Fila de ``ListaResumen``; emite ``pulsada`` al hacer clic."""
+
+    pulsada = Signal()
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802 (API de Qt)
+        if event.button() is Qt.MouseButton.LeftButton:
+            self.pulsada.emit()
+        super().mouseReleaseEvent(event)
+
+
+def _fila(izquierda: str, derecha: str) -> _Fila:
     caja = QHBoxLayout()
     caja.setContentsMargins(0, 3, 0, 3)
     caja.setSpacing(tokens.ESPACIO_PEQUENO)
@@ -101,4 +123,8 @@ def _fila(izquierda: str, derecha: str) -> QWidget:
     secundario = QLabel(derecha)
     secundario.setObjectName("TextoTenue")
     caja.addWidget(secundario, 0, Qt.AlignmentFlag.AlignRight)
-    return contenedor(caja)
+
+    fila = _Fila()
+    fila.setObjectName("Transparente")  # como `contenedor`: sin fondo propio
+    fila.setLayout(caja)
+    return fila

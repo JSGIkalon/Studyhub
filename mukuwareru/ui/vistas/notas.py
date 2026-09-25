@@ -40,7 +40,7 @@ from mukuwareru.ui.dialogos.nota import _EditorConImagenes, es_enriquecido
 from mukuwareru.ui.dialogos.vincular import DialogoVincular
 from mukuwareru.ui.tema import tokens
 from mukuwareru.ui.vistas.base import VistaBase
-from mukuwareru.ui.widgets import contenedor
+from mukuwareru.ui.widgets import contenedor, vaciar
 from mukuwareru.utilidades.texto import primera_linea
 
 _ETIQUETAS_ANOTACION = {
@@ -62,6 +62,8 @@ class VistaNotas(VistaBase):
     """Cuadernos y notas sueltas del proyecto."""
 
     titulo = "Notas"
+    dominio = "notas"
+    ignora = frozenset({"calendario", "resultados", "sesiones"})
     abrir_en_pagina = Signal(object, int)  # Documento, pagina
 
     # -- Construccion -------------------------------------------------------
@@ -118,7 +120,7 @@ class VistaNotas(VistaBase):
         nueva.setObjectName("BotonPrimario")
         nueva.setCursor(Qt.CursorShape.PointingHandCursor)
         nueva.setIcon(iconos.icono("mas", tokens.TEXTO))
-        nueva.clicked.connect(self._nueva_nota)
+        nueva.clicked.connect(self.nueva_nota)
         fila.addWidget(nueva)
         return fila
 
@@ -180,7 +182,7 @@ class VistaNotas(VistaBase):
 
         cabecera_enlaces = QHBoxLayout()
         titulo_enlaces = QLabel("Relacionado con")
-        titulo_enlaces.setStyleSheet("font-weight: 600;")
+        titulo_enlaces.setProperty("fuerte", True)
         cabecera_enlaces.addWidget(titulo_enlaces)
         cabecera_enlaces.addStretch(1)
         cabecera_enlaces.addWidget(enlazar)
@@ -403,7 +405,8 @@ class VistaNotas(VistaBase):
 
     # -- Acciones sobre notas ------------------------------------------------
 
-    def _nueva_nota(self) -> None:
+    def nueva_nota(self) -> None:
+        """Crea una nota en la seccion elegida (o la de por defecto) y la abre."""
         proyecto = self.contexto.proyecto
         if proyecto is None:
             return
@@ -512,9 +515,7 @@ class VistaNotas(VistaBase):
     # -- Relacionado con -----------------------------------------------------
 
     def _vaciar_enlaces(self) -> None:
-        while (elemento := self._caja_enlaces.takeAt(0)) is not None:
-            if (widget := elemento.widget()) is not None:
-                widget.deleteLater()
+        vaciar(self._caja_enlaces)
 
     def _pintar_enlaces(self) -> None:
         """Pinta los vinculos de la nota abierta como filas con boton de quitar."""

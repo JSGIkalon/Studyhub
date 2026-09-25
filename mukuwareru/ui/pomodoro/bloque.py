@@ -31,8 +31,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from mukuwareru.nucleo.servicios import Bloque, Fase
+from mukuwareru.nucleo.servicios import Bloque
 from mukuwareru.ui import iconos
+from mukuwareru.ui.pomodoro.reloj_compacto import COLOR_FASE
 from mukuwareru.ui.tema import tokens
 from mukuwareru.utilidades import formato
 
@@ -48,16 +49,11 @@ _ARRASTRE_MINIMO = 8
 
 _PASO_RUEDA_MIN = 5
 
-_COLOR_FASE = {
-    Fase.TRABAJO: tokens.ACENTO,
-    Fase.DESCANSO_CORTO: tokens.INFO,
-    Fase.DESCANSO_LARGO: tokens.EXITO,
-}
 
 
 def color_de(bloque: Bloque) -> str:
     """Color del bloque: el suyo si lo tiene, o el de su fase."""
-    return bloque.color or _COLOR_FASE[bloque.tipo]
+    return bloque.color or COLOR_FASE[bloque.tipo]
 
 
 def segunda_linea(bloque: Bloque) -> str:

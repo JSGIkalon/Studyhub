@@ -63,7 +63,7 @@ class DialogoEscenarios(QDialog):
         rejilla.setVerticalSpacing(tokens.ESPACIO_PEQUENO)
         for indice, texto in enumerate(("Evaluacion", "Fecha", "Peso", "Nota supuesta")):
             cabecera = QLabel(texto)
-            cabecera.setStyleSheet("font-weight: 600;")
+            cabecera.setProperty("fuerte", True)
             rejilla.addWidget(cabecera, 0, indice)
 
         for fila, evaluacion in enumerate(pendientes, start=1):

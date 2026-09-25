@@ -6,9 +6,9 @@ actividad reciente. Nada configurable, nada decorativo.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
@@ -19,7 +19,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from mukuwareru.nucleo.servicios import ResumenProgreso
+from mukuwareru.nucleo.modelos import Documento
+from mukuwareru.nucleo.servicios import CargaMateria, ResumenProgreso
 from mukuwareru.ui.tema import tokens
 from mukuwareru.ui.vistas.base import VistaBase
 from mukuwareru.ui.widgets import (
@@ -29,6 +30,7 @@ from mukuwareru.ui.widgets import (
     Tarjeta,
     TarjetaMetrica,
     contenedor,
+    vaciar,
 )
 from mukuwareru.utilidades import formato
 
@@ -38,7 +40,10 @@ _COLUMNAS_METRICAS = 3
 class VistaPanel(VistaBase):
     """Tarjetas de metricas, progreso del temario y actividad reciente."""
 
+    abrir_documento = Signal(object)  # Documento: «continuar leyendo»
+
     titulo = "Panel"
+    ignora = frozenset({"anotaciones", "resultados"})
 
     def _construir(self) -> None:
         raiz = QVBoxLayout(self)
@@ -122,10 +127,20 @@ class VistaPanel(VistaBase):
         tarjeta.setVisible(False)
         return tarjeta
 
-    def _pintar_plan(self, proyecto_id: int) -> None:
+    def _pintar_plan(
+        self, proyecto_id: int, hoy: date, avance: ResumenProgreso, cargas: list[CargaMateria]
+    ) -> None:
         plan = self.contexto.plan.cargar(proyecto_id)
-        diagnostico = self.contexto.plan.diagnostico(proyecto_id)
-        if not plan.activo or not diagnostico.hay_fecha:
+        if not plan.activo:
+            # Sin plan activo la banda no aparece: un plan que nadie pidio no
+            # deberia ponerse a dar cuentas en la pantalla principal. Y no hace
+            # falta calcular el diagnostico para no ensenarlo.
+            self._banda_plan.setVisible(False)
+            return
+        diagnostico = self.contexto.plan.diagnostico(
+            proyecto_id, hoy, conteo=(avance.total, avance.completados), cargas=cargas
+        )
+        if not diagnostico.hay_fecha:
             # Sin plan activo la banda no aparece: un plan que nadie pidio no
             # deberia ponerse a dar cuentas en la pantalla principal.
             self._banda_plan.setVisible(False)
@@ -146,12 +161,10 @@ class VistaPanel(VistaBase):
         )
         self._banda_plan.setVisible(True)
 
-    def _pintar_repaso(self, proyecto_id: int) -> None:
-        while (elemento := self._caja_repaso.takeAt(0)) is not None:
-            if (widget := elemento.widget()) is not None:
-                widget.deleteLater()
+    def _pintar_repaso(self, proyecto_id: int, hoy: date, cargas: list[CargaMateria]) -> None:
+        vaciar(self._caja_repaso)
 
-        sugerencias = self.contexto.plan.sugerencias(proyecto_id)
+        sugerencias = self.contexto.plan.sugerencias(proyecto_id, hoy, cargas=cargas)
         if not sugerencias:
             self._tarjeta_repaso.setVisible(False)
             return
@@ -229,6 +242,11 @@ class VistaPanel(VistaBase):
             "Ultimos PDFs abiertos",
             "Aun no has abierto ningun PDF. Copia tus archivos a la carpeta "
             "de la biblioteca y apareceran solos.",
+            pista="Continuar leyendo donde lo dejaste",
+        )
+        self._documentos_recientes: list[Documento] = []
+        self._pdfs.elegido.connect(
+            lambda i: self.abrir_documento.emit(self._documentos_recientes[i])
         )
         self._pdfs.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         fila.addWidget(self._pdfs, 1)
@@ -253,8 +271,10 @@ class VistaPanel(VistaBase):
         hoy = date.today()
         estudio = self.contexto.estadisticas.resumen(proyecto.id, hoy)
         avance = self.contexto.progreso.resumen(proyecto.id)
-        self._pintar_plan(proyecto.id)
-        self._pintar_repaso(proyecto.id)
+        # La carga la necesitan el ritmo y el repaso: se calcula una vez.
+        cargas = self.contexto.carga.resumen(proyecto.id)
+        self._pintar_plan(proyecto.id, hoy, avance, cargas)
+        self._pintar_repaso(proyecto.id, hoy, cargas)
         self._pintar_aviso_incumplimiento(proyecto.id, hoy)
 
         self._metricas["hoy"].establecer(
@@ -285,10 +305,11 @@ class VistaPanel(VistaBase):
         self._cifras.establecer(avance)
         self._pintar_materias(avance)
 
+        self._documentos_recientes = self.contexto.documentos.recientes(proyecto.id)
         self._pdfs.establecer(
             [
-                (d.nombre, _texto_apertura(d.abierto_en))
-                for d in self.contexto.documentos.recientes(proyecto.id)
+                (d.nombre, formato.apertura(d.abierto_en).capitalize())
+                for d in self._documentos_recientes
             ]
         )
         self._sesiones.establecer(
@@ -314,9 +335,7 @@ class VistaPanel(VistaBase):
             tarjeta.establecer("—", "Fecha objetivo superada")
 
     def _pintar_materias(self, avance: ResumenProgreso | None) -> None:
-        while (elemento := self._caja_materias.takeAt(0)) is not None:
-            if (widget := elemento.widget()) is not None:
-                widget.deleteLater()
+        vaciar(self._caja_materias)
 
         materias = avance.materias if avance is not None else ()
         if not materias or avance is None:
@@ -414,7 +433,7 @@ class _Punto(QWidget):
         caja.addStretch(1)
 
         self._valor = QLabel("0")
-        self._valor.setStyleSheet("font-weight: 600;")
+        self._valor.setProperty("fuerte", True)
         caja.addWidget(self._valor)
 
     def establecer(self, valor: int) -> None:
@@ -425,13 +444,3 @@ class _Punto(QWidget):
 def _punto(texto: str, color: str) -> _Punto:
     return _Punto(texto, color)
 
-
-def _texto_apertura(momento: datetime | None) -> str:
-    if momento is None:
-        return "Sin abrir"
-    dias = (date.today() - momento.date()).days
-    if dias == 0:
-        return f"Hoy {momento:%H:%M}"
-    if dias == 1:
-        return "Ayer"
-    return formato.fecha_corta(momento.date())

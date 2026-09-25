@@ -26,7 +26,7 @@ class Tarjeta(QFrame):
 
         if titulo:
             etiqueta = QLabel(titulo)
-            etiqueta.setStyleSheet("font-weight: 600;")
+            etiqueta.setProperty("fuerte", True)
             self.contenido.addWidget(etiqueta)
 
     def agregar(self, widget: QWidget) -> None:

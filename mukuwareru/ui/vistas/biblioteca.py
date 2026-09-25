@@ -31,7 +31,7 @@ from mukuwareru.nucleo.servicios.biblioteca import ruta_biblioteca
 from mukuwareru.ui import iconos
 from mukuwareru.ui.tema import tokens
 from mukuwareru.ui.vistas.base import VistaBase
-from mukuwareru.ui.widgets import TarjetaDocumento
+from mukuwareru.ui.widgets import TarjetaDocumento, vaciar
 from mukuwareru.utilidades.registro import obtener
 
 _log = obtener(__name__)
@@ -43,6 +43,8 @@ class VistaBiblioteca(VistaBase):
     """Rejilla de PDFs con busqueda y escaneo automatico."""
 
     titulo = "Biblioteca"
+    dominio = "documentos"
+    ignora = frozenset({"calendario", "resultados", "sesiones"})
     abrir_documento = Signal(object)  # Documento
 
     def _construir(self) -> None:
@@ -151,9 +153,7 @@ class VistaBiblioteca(VistaBase):
         return texto
 
     def _pintar(self, documentos: list[Documento]) -> None:
-        while (elemento := self._rejilla.takeAt(0)) is not None:
-            if (widget := elemento.widget()) is not None:
-                widget.deleteLater()
+        vaciar(self._rejilla)
 
         visibles = [d for d in documentos if self._filtro in d.nombre.casefold()]
         if not visibles:

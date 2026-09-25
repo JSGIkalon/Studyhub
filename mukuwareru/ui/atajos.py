@@ -62,6 +62,12 @@ class Atajo:
 ATAJOS: tuple[Atajo, ...] = (
     Atajo("buscar", GLOBAL, "Abrir el buscador global", "Ctrl+K"),
     Atajo("barra", GLOBAL, "Mostrar u ocultar la barra lateral", "Ctrl+B"),
+    Atajo("pomodoro", GLOBAL, "Iniciar o pausar el Pomodoro", "Ctrl+Space"),
+    Atajo("nota_nueva", GLOBAL, "Nota nueva", "Ctrl+N"),
+    # Se atiende en `keyPressEvent` de la ventana: nueve QShortcut para decir
+    # una sola cosa llenarian la ayuda de filas iguales.
+    Atajo("secciones", GLOBAL, "Ir a la seccion N de la barra lateral",
+          etiqueta="Ctrl+1 … Ctrl+9"),
 
     Atajo("mover", BUSCADOR, "Moverse entre los resultados", etiqueta="↑  ↓"),
     Atajo("abrir", BUSCADOR, "Abrir el resultado elegido", etiqueta="Enter"),
@@ -74,7 +80,7 @@ ATAJOS: tuple[Atajo, ...] = (
     Atajo("ajustar", LECTOR, "Ajustar la pagina al ancho", "Ctrl+0"),
     Atajo("nota", LECTOR, "Escribir una nota en un cuaderno", "Ctrl+M"),
     Atajo("copiar", LECTOR, "Copiar el texto seleccionado", "Ctrl+C"),
-    Atajo("volver", LECTOR, "Volver a la biblioteca", "Esc"),
+    Atajo("volver", LECTOR, "Volver a donde estabas", "Esc"),
 
     Atajo("cerrar_editor", POMODORO, "Cerrar el editor", etiqueta="Esc"),
 )

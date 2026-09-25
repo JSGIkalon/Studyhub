@@ -108,7 +108,7 @@ class DialogoEvaluacion(QDialog):
         fila.addWidget(QLabel("de"))
         fila.addWidget(self._posibles)
         self._porcentaje = QLabel()
-        self._porcentaje.setStyleSheet("font-weight: 600;")
+        self._porcentaje.setProperty("fuerte", True)
         fila.addWidget(self._porcentaje)
         fila.addStretch(1)
         formulario.addRow("Puntuacion", contenedor(fila))
@@ -178,7 +178,7 @@ class DialogoEvaluacion(QDialog):
 
         for indice, texto in enumerate(("Asignatura", "Obtenidos", "Posibles", "%")):
             cabecera = QLabel(texto)
-            cabecera.setStyleSheet("font-weight: 600;")
+            cabecera.setProperty("fuerte", True)
             rejilla.addWidget(cabecera, 0, indice)
 
         for fila, materia in enumerate(self._materias, start=1):

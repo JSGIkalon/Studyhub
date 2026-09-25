@@ -117,7 +117,7 @@ class VistaLector(QWidget):
         fila.addWidget(atras)
 
         self._titulo = QLabel()
-        self._titulo.setStyleSheet("font-weight: 600;")
+        self._titulo.setProperty("fuerte", True)
         fila.addWidget(self._titulo, 1)
 
         self._selector = QSpinBox()

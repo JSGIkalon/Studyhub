@@ -68,7 +68,7 @@ class PanelEdicionBloque(QFrame):
         caja.setSpacing(tokens.ESPACIO_PEQUENO)
 
         self._titulo = QLabel()
-        self._titulo.setStyleSheet("font-weight: 600;")
+        self._titulo.setProperty("fuerte", True)
         caja.addWidget(self._titulo)
 
         caja.addWidget(self._selector_tipo())

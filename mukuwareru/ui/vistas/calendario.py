@@ -35,7 +35,7 @@ from mukuwareru.nucleo.servicios import DiaCalendario
 from mukuwareru.ui.dialogos.planificar import DialogoBloque, DialogoHito
 from mukuwareru.ui.tema import tokens
 from mukuwareru.ui.vistas.base import VistaBase
-from mukuwareru.ui.widgets import Tarjeta, contenedor
+from mukuwareru.ui.widgets import Tarjeta, contenedor, vaciar
 from mukuwareru.utilidades import formato
 
 _DIAS = ("Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom")
@@ -58,6 +58,8 @@ class VistaCalendario(VistaBase):
     """Rejilla del mes, detalle del dia y planificacion."""
 
     titulo = "Calendario"
+    dominio = "calendario"
+    ignora = frozenset({"anotaciones", "documentos", "notas"})
 
     # -- Construccion -------------------------------------------------------
 
@@ -88,7 +90,7 @@ class VistaCalendario(VistaBase):
         fila.addWidget(titulo)
 
         self._etiqueta_mes = QLabel()
-        self._etiqueta_mes.setStyleSheet("font-weight: 600;")
+        self._etiqueta_mes.setProperty("fuerte", True)
         fila.addSpacing(tokens.ESPACIO)
         fila.addWidget(self._etiqueta_mes)
 
@@ -151,7 +153,7 @@ class VistaCalendario(VistaBase):
 
         fila = QHBoxLayout()
         self._titulo_dia = QLabel()
-        self._titulo_dia.setStyleSheet("font-weight: 600;")
+        self._titulo_dia.setProperty("fuerte", True)
         fila.addWidget(self._titulo_dia)
         fila.addStretch(1)
 
@@ -212,9 +214,7 @@ class VistaCalendario(VistaBase):
         )
 
     def _pintar_mes(self) -> None:
-        while (elemento := self._rejilla.takeAt(0)) is not None:
-            if (widget := elemento.widget()) is not None:
-                widget.deleteLater()
+        vaciar(self._rejilla)
         self._celdas.clear()
 
         hoy = date.today()
@@ -241,10 +241,7 @@ class VistaCalendario(VistaBase):
             celda.marcar(clave == self._elegido.isoformat())
 
     def _pintar_dia(self) -> None:
-        while self._caja_dia.count() > 1:
-            elemento = self._caja_dia.takeAt(0)
-            if (widget := elemento.widget()) is not None:
-                widget.deleteLater()
+        vaciar(self._caja_dia, conservar=1)
 
         self._titulo_dia.setText(formato.fecha_larga(self._elegido))
         dia = self._dias.get(self._elegido.isoformat())
@@ -664,7 +661,7 @@ class _TarjetaBloque(Tarjeta):
         fila.setSpacing(tokens.ESPACIO_PEQUENO)
 
         cuando = QLabel(f"{franja}  ·  {bloque.duracion_min} min")
-        cuando.setStyleSheet("font-weight: 600;")
+        cuando.setProperty("fuerte", True)
         fila.addWidget(cuando)
         fila.addWidget(QLabel(bloque.titulo), 1)
 

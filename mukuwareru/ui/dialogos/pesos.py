@@ -100,7 +100,7 @@ class DialogoPesos(QDialog):
 
         for indice, texto in enumerate(("Asignatura", "Modulos", "Peso", "Cuota")):
             cabecera = QLabel(texto)
-            cabecera.setStyleSheet("font-weight: 600;")
+            cabecera.setProperty("fuerte", True)
             rejilla.addWidget(cabecera, 0, indice)
 
         for fila, materia in enumerate(self._materias, start=1):

@@ -382,7 +382,7 @@ class VistaAjustes(VistaBase):
                 fila += 1
 
             cabecera = QLabel(ambito)
-            cabecera.setStyleSheet("font-weight: 600;")
+            cabecera.setProperty("fuerte", True)
             rejilla.addWidget(cabecera, fila, 0, 1, 2)
             fila += 1
 

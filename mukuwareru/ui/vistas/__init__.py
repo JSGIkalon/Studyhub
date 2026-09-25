@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from mukuwareru.ui.vistas.ajustes import VistaAjustes
-from mukuwareru.ui.vistas.base import VistaBase, VistaPendiente
+from mukuwareru.ui.vistas.base import VistaBase
 from mukuwareru.ui.vistas.biblioteca import VistaBiblioteca
 from mukuwareru.ui.vistas.calendario import VistaCalendario
 from mukuwareru.ui.vistas.estadisticas import VistaEstadisticas
@@ -56,4 +56,4 @@ SECCIONES: tuple[Seccion, ...] = (
     Seccion("ajustes", "Ajustes", "engranaje", VistaAjustes),
 )
 
-__all__ = ["SECCIONES", "Seccion", "VistaBase", "VistaPendiente"]
+__all__ = ["SECCIONES", "Seccion", "VistaBase"]

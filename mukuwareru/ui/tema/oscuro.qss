@@ -119,13 +119,46 @@ QPushButton#BotonNuevoProyecto:hover {
     background-color: transparent;
 }
 
-#MiniBarraFase {
-    font-size: {{TAM_PEQUENO}}px;
+/* Relojes compactos (barra y flotante). El color sale de la propiedad
+ * dinamica `fase`, que solo cambia al cambiar de fase: nada de estilos
+ * inline reaplicados en cada tic. */
+#RelojFase {
+    font-weight: 700;
     letter-spacing: 1px;
 }
 
-#MiniBarraTiempo {
+#RelojTiempo {
+    font-weight: 700;
     font-variant-numeric: tabular-nums;
+}
+
+#RelojFase[fase="trabajo"], #RelojTiempo[fase="trabajo"],
+#RelojFase[fase="libre"], #RelojTiempo[fase="libre"] {
+    color: {{ACENTO}};
+}
+
+#RelojFase[fase="descanso_corto"], #RelojTiempo[fase="descanso_corto"] {
+    color: {{INFO}};
+}
+
+#RelojFase[fase="descanso_largo"], #RelojTiempo[fase="descanso_largo"] {
+    color: {{EXITO}};
+}
+
+#MiniPomodoroBarra #RelojFase {
+    font-size: 10px;
+}
+
+#MiniPomodoroBarra #RelojTiempo {
+    font-size: 22px;
+}
+
+#MiniPomodoro #RelojFase {
+    font-size: 11px;
+}
+
+#MiniPomodoro #RelojTiempo {
+    font-size: 30px;
 }
 
 QPushButton#MiniBarraBoton {
@@ -335,14 +368,6 @@ QTreeView::item:selected {
 
 #MiniPomodoro QLabel {
     background-color: transparent;
-}
-
-#MiniFase {
-    letter-spacing: 1px;
-}
-
-#MiniTiempo {
-    font-variant-numeric: tabular-nums;
 }
 
 QPushButton#MiniCerrar {
@@ -627,4 +652,9 @@ QTabBar::tab:selected {
 
 QScrollArea {
     border: none;
+}
+
+/* Texto destacado: setProperty("fuerte", True) en vez de un estilo inline. */
+*[fuerte="true"] {
+    font-weight: 600;
 }

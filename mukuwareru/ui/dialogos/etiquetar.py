@@ -45,7 +45,7 @@ class DialogoEtiquetar(QDialog):
         columna.setSpacing(tokens.ESPACIO_PEQUENO)
 
         titulo = QLabel(f"Sesion de {formato.horas(duracion_seg)} registrada.")
-        titulo.setStyleSheet("font-weight: 600;")
+        titulo.setProperty("fuerte", True)
         columna.addWidget(titulo)
 
         pregunta = QLabel("¿Que materias estudiaste? Puedes marcar varias, o ninguna.")

@@ -54,7 +54,7 @@ class Contexto(QObject):
     """
 
     proyecto_cambiado = Signal(object)  # Proyecto | None
-    datos_cambiados = Signal(object)    # la vista que provoco el cambio
+    datos_cambiados = Signal(object, object)  # origen, dominio (str | None)
     disposicion_cambiada = Signal()     # cambio el orden o la visibilidad de las secciones
 
     def __init__(self, conexion: sqlite3.Connection) -> None:
@@ -108,13 +108,21 @@ class Contexto(QObject):
         disponibles = self.proyectos.listar()
         self.activar(disponibles[0] if disponibles else None)
 
-    def notificar_cambio(self, origen: object = None) -> None:
+    def notificar_cambio(self, origen: object = None, dominio: str | None = None) -> None:
         """Avisa de que los datos cambiaron y las demas vistas deben recargar.
 
         ``origen`` es la vista responsable del cambio; se excluye para que no se
         reconstruya a si misma y pierda el scroll o las secciones desplegadas.
+
+        ``dominio`` dice **que** cambio (``"notas"``, ``"sesiones"``...). Si no
+        se da, se toma el ``dominio`` que declare el origen; y si tampoco hay,
+        es ``None``, que significa «cualquier cosa» y ensucia todas las vistas.
+        Con el, una vista que no muestra ese dato no se recalcula: subrayar en
+        el PDF ya no rehace Estadisticas ni Calendario.
         """
-        self.datos_cambiados.emit(origen)
+        if dominio is None:
+            dominio = getattr(origen, "dominio", None)
+        self.datos_cambiados.emit(origen, dominio)
 
     def refrescar_proyecto_activo(self) -> None:
         """Recarga el proyecto activo desde la base de datos."""

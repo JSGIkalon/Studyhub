@@ -35,13 +35,16 @@ from mukuwareru.ui.dialogos.importar import DialogoImportar
 from mukuwareru.ui.dialogos.pesos import DialogoPesos
 from mukuwareru.ui.tema import tokens
 from mukuwareru.ui.vistas.base import VistaBase
-from mukuwareru.ui.widgets import BarraMateria, Tarjeta, contenedor
+from mukuwareru.ui.widgets import BarraMateria, Tarjeta, contenedor, vaciar
+from mukuwareru.utilidades import formato
 
 
 class VistaProgreso(VistaBase):
     """Materias plegables con una casilla por modulo."""
 
     titulo = "Progreso"
+    dominio = "temario"
+    ignora = frozenset({"anotaciones", "documentos", "resultados"})
 
     def _construir(self) -> None:
         raiz = QVBoxLayout(self)
@@ -117,9 +120,7 @@ class VistaProgreso(VistaBase):
 
     def recargar(self) -> None:
         """Reconstruye la lista de materias del proyecto activo."""
-        while (elemento := self._caja_materias.takeAt(0)) is not None:
-            if (widget := elemento.widget()) is not None:
-                widget.deleteLater()
+        vaciar(self._caja_materias)
 
         proyecto = self.contexto.proyecto
         if proyecto is None:
@@ -169,7 +170,7 @@ class VistaProgreso(VistaBase):
             self._caja_materias.addWidget(seccion)
             self._secciones[materia.id] = seccion
 
-        # El grafo puede pedir que se enfoque una materia justo despues de
+        # El buscador puede pedir que se enfoque una materia justo despues de
         # navegar hasta aqui, cuando la vista todavia estaba sucia.
         if self._pendiente_de_enfocar is not None:
             objetivo, self._pendiente_de_enfocar = self._pendiente_de_enfocar, None
@@ -178,8 +179,9 @@ class VistaProgreso(VistaBase):
     def enfocar(self, materia_id: int) -> None:
         """Despliega una materia y la trae a la vista.
 
-        Es el punto de entrada desde el grafo: hacer doble clic en un nodo lleva
-        a la informacion que ya existe, en lugar de repetirla dentro del lienzo.
+        Es el punto de entrada desde el buscador (Ctrl+K): elegir una materia o
+        un modulo lleva a su sitio en el temario, desplegado, y no al principio
+        de la lista.
         """
         seccion = self._secciones.get(materia_id)
         if seccion is None:
@@ -447,7 +449,7 @@ class SeccionMateria(Tarjeta):
             prioridad=datos.prioridad,
             fecha_limite=datos.fecha_limite,
         )
-        # Estructural: el Panel y el grafo leen estos mismos datos.
+        # Estructural: el Panel lee estos mismos datos.
         self.cambiada.emit()
 
     def _alternar(self, *, avisar: bool = True) -> None:
@@ -511,6 +513,12 @@ class SeccionMateria(Tarjeta):
         menu = QMenu(self)
         menu.addAction("Renombrar…", lambda: self._renombrar_modulo(modulo))
         menu.addAction("Anadir modulo debajo…", lambda: self._insertar_tras(modulo))
+        estimacion = (
+            f" ({formato.horas(round(modulo.horas_estimadas * 3600))})"
+            if modulo.horas_estimadas is not None
+            else ""
+        )
+        menu.addAction(f"Estimar horas…{estimacion}", lambda: self._estimar_horas(modulo))
         menu.addSeparator()
 
         subir = menu.addAction("Subir", lambda: self._mover_modulo(modulo, -1))
@@ -553,6 +561,37 @@ class SeccionMateria(Tarjeta):
         if not aceptado or not (nombre := nombre.strip()) or nombre == modulo.nombre:
             return
         self.contexto.modulos.renombrar(modulo.id, nombre)
+        self.cambiada.emit()
+
+    def _estimar_horas(self, modulo: Modulo) -> None:
+        """Horas que se calcula que lleva el modulo. Vacio borra la estimacion.
+
+        En cuanto un modulo de la materia tiene estimacion, la carga de la
+        materia sale del desglose por modulos y no de la cifra global: es el
+        dato mas fino (ver `ServicioCarga`).
+        """
+        actual = "" if modulo.horas_estimadas is None else f"{modulo.horas_estimadas:g}"
+        texto, aceptado = QInputDialog.getText(
+            self,
+            "Estimar horas",
+            f"Horas para «{modulo.nombre}» (vacio para quitar la estimacion):",
+            text=actual,
+        )
+        if not aceptado:
+            return
+        texto = texto.strip().replace(",", ".")
+        if not texto:
+            horas = None
+        else:
+            try:
+                horas = float(texto)
+            except ValueError:
+                QMessageBox.information(self, "Estimar horas", f"«{texto}» no es un numero.")
+                return
+            if horas < 0:
+                QMessageBox.information(self, "Estimar horas", "Las horas no pueden ser negativas.")
+                return
+        self.contexto.carga.fijar_horas_modulo(modulo.id, horas)
         self.cambiada.emit()
 
     def _insertar_tras(self, modulo: Modulo) -> None:

@@ -7,7 +7,7 @@ a la izquierda y un area de contenido que cambia de vista.
 from __future__ import annotations
 
 from PySide6.QtCore import QByteArray, QEvent, Qt, QTimer
-from PySide6.QtGui import QCloseEvent, QShortcut
+from PySide6.QtGui import QCloseEvent, QKeyEvent, QShortcut
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -39,7 +39,9 @@ from mukuwareru.ui.vistas import SECCIONES, VistaBase
 from mukuwareru.ui.vistas.biblioteca import VistaBiblioteca
 from mukuwareru.ui.vistas.bienvenida import PanelBienvenida
 from mukuwareru.ui.vistas.notas import VistaNotas
+from mukuwareru.ui.vistas.panel import VistaPanel
 from mukuwareru.ui.vistas.pomodoro import VistaPomodoro
+from mukuwareru.ui.vistas.progreso import VistaProgreso
 from mukuwareru.utilidades import rutas
 from mukuwareru.utilidades.registro import obtener
 
@@ -71,6 +73,8 @@ class VentanaPrincipal(QMainWindow):
         # Seccion que el usuario pidio mientras no habia proyecto: se recupera
         # en cuanto exista uno, en lugar de caer siempre en la inicial.
         self._seccion_pedida = ""
+        # A donde vuelve «Volver» del lector: la seccion desde la que se abrio.
+        self._origen_lector = "biblioteca"
 
         self._construir()
         self._montar_paleta()
@@ -137,17 +141,20 @@ class VentanaPrincipal(QMainWindow):
         self.conmutador.addWidget(self.bienvenida)
 
         # El lector ocupa el area de contenido pero no es una seccion de la
-        # barra lateral: se entra desde la Biblioteca y se sale con «Volver».
+        # barra lateral. Se entra desde la Biblioteca, una nota, el Panel o el
+        # buscador, y «Volver» regresa a donde se estaba.
         self.lector = VistaLector(self.contexto)
-        self.lector.volver.connect(lambda: self.ir_a("biblioteca"))
+        self.lector.volver.connect(lambda: self.ir_a(self._origen_lector))
         self.lector.anotaciones_cambiadas.connect(
-            lambda: self.contexto.notificar_cambio(self.lector)
+            lambda: self.contexto.notificar_cambio(self.lector, "anotaciones")
         )
         self.lector.abrir_nota.connect(self.abrir_nota)
         self.conmutador.addWidget(self.lector)
 
         if isinstance(biblioteca := self._vistas.get("biblioteca"), VistaBiblioteca):
             biblioteca.abrir_documento.connect(self.abrir_lector)
+        if isinstance(panel := self._vistas.get("panel"), VistaPanel):
+            panel.abrir_documento.connect(self.abrir_lector)
         if isinstance(notas := self._vistas.get("notas"), VistaNotas):
             notas.abrir_en_pagina.connect(self.abrir_lector)
 
@@ -205,6 +212,39 @@ class VentanaPrincipal(QMainWindow):
         atajo.activated.connect(self.abrir_buscador)
         oculto = QShortcut(atajos.secuencia("barra"), self)
         oculto.activated.connect(self.alternar_barra)
+        reloj = QShortcut(atajos.secuencia("pomodoro"), self)
+        reloj.activated.connect(self._alternar_pomodoro)
+        nota = QShortcut(atajos.secuencia("nota_nueva"), self)
+        nota.activated.connect(self._nota_nueva)
+
+    def _alternar_pomodoro(self) -> None:
+        """Ctrl+Espacio: el mismo boton que el de la barra y el del flotante."""
+        if self.contexto.proyecto is not None and self._pomodoro is not None:
+            self._pomodoro.alternar_reloj()
+
+    def _nota_nueva(self) -> None:
+        """Ctrl+N: nota nueva desde cualquier seccion, sin pasar antes por Notas."""
+        vista = self._vistas.get("notas")
+        if self.contexto.proyecto is None or not isinstance(vista, VistaNotas):
+            return
+        self.ir_a("notas")
+        vista.nueva_nota()
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802 (API de Qt)
+        """Ctrl+1 … Ctrl+9: la seccion N de la barra, en el orden del usuario."""
+        digito = event.key() - Qt.Key.Key_0
+        if (
+            event.modifiers() == Qt.KeyboardModifier.ControlModifier
+            and 1 <= digito <= 9
+            and self.contexto.proyecto is not None
+        ):
+            claves = tuple(seccion.clave for seccion in SECCIONES)
+            visibles = self.contexto.preferencias.disposicion_secciones(claves).visibles
+            if digito <= len(visibles):
+                self.ir_a(visibles[digito - 1])
+                event.accept()
+                return
+        super().keyPressEvent(event)
 
     def abrir_buscador(self) -> None:
         """Muestra la paleta de busqueda, si hay proyecto sobre el que buscar."""
@@ -231,12 +271,23 @@ class VentanaPrincipal(QMainWindow):
                 self.abrir_lector(documento, resultado.pagina or 0)
                 return
 
-        destino = {
-            Familia.MATERIA: "progreso",
-            Familia.MODULO: "progreso",
-            Familia.HITO: "calendario",
-        }.get(resultado.familia, "panel")
+        if resultado.familia in (Familia.MATERIA, Familia.MODULO):
+            self._enfocar_en_progreso(resultado)
+            return
+
+        destino = {Familia.HITO: "calendario"}.get(resultado.familia, "panel")
         self.ir_a(destino)
+
+    def _enfocar_en_progreso(self, resultado: Resultado) -> None:
+        """Abre Progreso con la materia del resultado desplegada y a la vista."""
+        self.ir_a("progreso")
+        materia_id: int | None = resultado.objeto_id
+        if resultado.familia is Familia.MODULO:
+            modulo = self.contexto.modulos.obtener(resultado.objeto_id)
+            materia_id = modulo.materia_id if modulo is not None else None
+        vista = self._vistas.get("progreso")
+        if materia_id is not None and isinstance(vista, VistaProgreso):
+            vista.enfocar(materia_id)
 
     # -- Pomodoro fuera de la ventana ---------------------------------------
 
@@ -265,6 +316,7 @@ class VentanaPrincipal(QMainWindow):
         self.mini_pomodoro.alternar_pedido.connect(vista.alternar_reloj)
         self.mini_pomodoro.detener_pedido.connect(vista.detener_sesion_libre)
         self.barra_lateral.pomodoro_alternado.connect(vista.alternar_reloj)
+        self.barra_lateral.pomodoro_detenido.connect(vista.detener_sesion_libre)
         self._refrescar_mini()
 
     def _refrescar_mini(self) -> None:
@@ -274,7 +326,7 @@ class VentanaPrincipal(QMainWindow):
         self.barra_lateral.mostrar_pomodoro(self._pomodoro.corriendo)
         self._evaluar_flotante()
 
-    def _volcar_reloj(self) -> None:
+    def _volcar_reloj(self, *, forzar_flotante: bool = False) -> None:
         """Pinta en los dos relojes compactos lo que se este cronometrando.
 
         Puede ser el Pomodoro o una sesion de trabajo indefinida; nunca las dos,
@@ -284,15 +336,20 @@ class VentanaPrincipal(QMainWindow):
         """
         if self._pomodoro is None or self.mini_pomodoro is None:
             return
+        # El flotante oculto no se refresca: `_mostrar_mini` lo pone al dia
+        # justo antes de ensenarlo.
+        flotante = forzar_flotante or self.mini_pomodoro.isVisible()
         if self._pomodoro.sesion_libre_activa:
             crono = self._pomodoro.cronometro
-            self.mini_pomodoro.actualizar_libre(crono.transcurrido_seg, crono.estado)
+            if flotante:
+                self.mini_pomodoro.actualizar_libre(crono.transcurrido_seg, crono.estado)
             self.barra_lateral.actualizar_pomodoro_libre(
                 crono.transcurrido_seg, crono.estado
             )
             return
         reloj = self._pomodoro.reloj
-        self.mini_pomodoro.actualizar(reloj.fase, reloj.restante_seg, reloj.estado)
+        if flotante:
+            self.mini_pomodoro.actualizar(reloj.fase, reloj.restante_seg, reloj.estado)
         self.barra_lateral.actualizar_pomodoro(reloj.fase, reloj.restante_seg, reloj.estado)
 
     def _evaluar_flotante(self) -> None:
@@ -337,7 +394,7 @@ class VentanaPrincipal(QMainWindow):
             return
         if not self._pomodoro.corriendo:
             return
-        self._volcar_reloj()
+        self._volcar_reloj(forzar_flotante=True)
         self.mini_pomodoro.show()
         self.mini_pomodoro.colocar_por_defecto()
 
@@ -426,6 +483,12 @@ class VentanaPrincipal(QMainWindow):
             else self.lector.abrir(documento)
         )
         if abierto:
+            actual = self.conmutador.currentWidget()
+            if actual is not self.lector:
+                self._origen_lector = next(
+                    (clave for clave, vista in self._vistas.items() if vista is actual),
+                    "biblioteca",
+                )
             self.conmutador.setCurrentWidget(self.lector)
             self.barra_lateral.marcar_seccion("biblioteca")
 

@@ -7,18 +7,22 @@ esperan a que se las muestre. Evita reconstruir siete vistas en cada cambio.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
 from PySide6.QtGui import QShowEvent
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QWidget
 
 from mukuwareru.contexto import Contexto
-from mukuwareru.ui.tema import tokens
 
 
 class VistaBase(QWidget):
     """Base de toda vista enganchada al conmutador principal."""
 
     titulo: str = ""
+
+    # Que escribe esta vista, para quien escuche `datos_cambiados`.
+    dominio: str | None = None
+    # Dominios que esta vista NO muestra: sus cambios no la ensucian. Ante la
+    # duda no se pone: una recarga de mas es lenta; una de menos, un dato viejo.
+    ignora: frozenset[str] = frozenset()
 
     def __init__(self, contexto: Contexto, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -43,8 +47,8 @@ class VistaBase(QWidget):
         if self.isVisible():
             self.refrescar_si_hace_falta()
 
-    def _al_cambiar_datos(self, origen: object) -> None:
-        if origen is self:
+    def _al_cambiar_datos(self, origen: object, dominio: object = None) -> None:
+        if origen is self or dominio in self.ignora:
             return
         self._sucia = True
         if self.isVisible():
@@ -63,32 +67,3 @@ class VistaBase(QWidget):
     def showEvent(self, event: QShowEvent) -> None:  # noqa: N802 (API de Qt)
         super().showEvent(event)
         self.refrescar_si_hace_falta()
-
-
-class VistaPendiente(VistaBase):
-    """Marcador de posicion para las vistas que llegan en etapas posteriores."""
-
-    etapa: str = ""
-
-    def _construir(self) -> None:
-        disposicion = QVBoxLayout(self)
-        disposicion.setContentsMargins(
-            tokens.ESPACIO_GRANDE, tokens.ESPACIO_GRANDE,
-            tokens.ESPACIO_GRANDE, tokens.ESPACIO_GRANDE,
-        )
-        disposicion.setSpacing(tokens.ESPACIO_PEQUENO)
-
-        titulo = QLabel(self.titulo)
-        titulo.setObjectName("TituloVista")
-        disposicion.addWidget(titulo)
-
-        nota = QLabel(f"Pendiente de implementar en la {self.etapa}.")
-        nota.setObjectName("TextoSuave")
-        disposicion.addWidget(nota)
-
-        disposicion.addStretch(1)
-
-        marca = QLabel("Mukuwareru")
-        marca.setObjectName("TextoTenue")
-        marca.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        disposicion.addWidget(marca)

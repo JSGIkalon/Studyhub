@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QPainter, QPaintEvent, QPen
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QFont, QPainter, QPaintEvent
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from mukuwareru.ui.tema import tokens
+from mukuwareru.ui.widgets.anillo import pintar_arco
 from mukuwareru.utilidades import formato
 
 
@@ -44,19 +45,7 @@ class AnilloReloj(QWidget):
         pintor = QPainter(self)
         pintor.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        margen = self._grosor / 2 + 2
-        area = QRectF(margen, margen, self.width() - 2 * margen, self.height() - 2 * margen)
-
-        pista = QPen(QColor(tokens.SUPERFICIE_ALTA), self._grosor)
-        pista.setCapStyle(Qt.PenCapStyle.FlatCap)
-        pintor.setPen(pista)
-        pintor.drawArc(area, 0, 360 * 16)
-
-        if self._progreso > 0:
-            arco = QPen(QColor(self._color), self._grosor)
-            arco.setCapStyle(Qt.PenCapStyle.RoundCap)
-            pintor.setPen(arco)
-            pintor.drawArc(area, 90 * 16, -int(360 * 16 * self._progreso))
+        pintar_arco(pintor, self.rect(), self._grosor, self._progreso, self._color, holgura=2)
 
         desplazamiento = self._separacion // 4
         centro = self.rect().adjusted(0, -desplazamiento, 0, -desplazamiento)

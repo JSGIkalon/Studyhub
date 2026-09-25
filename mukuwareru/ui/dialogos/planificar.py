@@ -194,7 +194,7 @@ class DialogoBloque(QDialog):
         columna.addLayout(formulario)
 
         etiqueta = QLabel("Materias previstas")
-        etiqueta.setStyleSheet("font-weight: 600;")
+        etiqueta.setProperty("fuerte", True)
         columna.addWidget(etiqueta)
 
         self._lista = QListWidget()

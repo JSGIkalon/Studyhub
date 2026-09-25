@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
-
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QWidget
@@ -42,7 +40,7 @@ class TarjetaDocumento(Tarjeta):
         cabecera.addWidget(simbolo, 0, Qt.AlignmentFlag.AlignTop)
 
         nombre = QLabel(self.documento.nombre)
-        nombre.setStyleSheet("font-weight: 600;")
+        nombre.setProperty("fuerte", True)
         nombre.setWordWrap(True)
         cabecera.addWidget(nombre, 1)
 
@@ -66,7 +64,7 @@ class TarjetaDocumento(Tarjeta):
         partes = [formato.tamano(self.documento.bytes)]
         if self.documento.paginas:
             partes.append(f"{self.documento.paginas} paginas")
-        partes.append(_texto_apertura(self.documento.abierto_en))
+        partes.append(formato.apertura(self.documento.abierto_en))
         if "/" in self.documento.ruta_relativa:
             partes.append(self.documento.ruta_relativa.rsplit("/", 1)[0])
         return "  ·  ".join(partes)
@@ -113,13 +111,3 @@ def _avance(documento: Documento) -> int:
         return 0
     return formato.porcentaje(documento.pagina_actual + 1, documento.paginas)
 
-
-def _texto_apertura(momento: datetime | None) -> str:
-    if momento is None:
-        return "sin abrir"
-    dias = (date.today() - momento.date()).days
-    if dias == 0:
-        return f"hoy {momento:%H:%M}"
-    if dias == 1:
-        return "ayer"
-    return formato.fecha_corta(momento.date())

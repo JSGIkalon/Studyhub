@@ -24,8 +24,6 @@ class CachePaginas:
     def __init__(self, maximo: int = _MAXIMO_POR_DEFECTO) -> None:
         self._maximo = maximo
         self._entradas: OrderedDict[tuple[int, int, int], QImage] = OrderedDict()
-        self.aciertos = 0
-        self.fallos = 0
 
     @staticmethod
     def clave(pagina: int, zoom: float, dpr: float) -> tuple[int, int, int]:
@@ -36,10 +34,8 @@ class CachePaginas:
         """Devuelve la imagen si esta cacheada y la marca como recien usada."""
         imagen = self._entradas.get(clave)
         if imagen is None:
-            self.fallos += 1
             return None
         self._entradas.move_to_end(clave)
-        self.aciertos += 1
         return imagen
 
     def guardar(self, clave: tuple[int, int, int], imagen: QImage) -> None:

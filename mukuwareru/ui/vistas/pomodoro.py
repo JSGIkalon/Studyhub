@@ -69,6 +69,8 @@ class VistaPomodoro(VistaBase):
     """Timeline del recorrido, cuenta atras y registro de sesiones."""
 
     titulo = "Pomodoro"
+    dominio = "sesiones"
+    ignora = frozenset({"anotaciones", "documentos", "notas", "resultados"})
 
     # El reloj vive aqui, pero la mini ventana y los avisos del sistema los
     # gestiona VentanaPrincipal: esta vista no sabe que existen.

@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from mukuwareru.nucleo.servicios import ResumenProgreso
 from mukuwareru.ui.tema import tokens
 from mukuwareru.ui.vistas.base import VistaBase
 from mukuwareru.ui.widgets import (
@@ -27,6 +28,7 @@ from mukuwareru.ui.widgets import (
     Tarjeta,
     TarjetaMetrica,
     contenedor,
+    vaciar,
 )
 from mukuwareru.utilidades import formato
 
@@ -40,6 +42,7 @@ class VistaEstadisticas(VistaBase):
     """Horas por dia, semana y mes, mas los totales del proyecto."""
 
     titulo = "Estadisticas"
+    ignora = frozenset({"anotaciones", "documentos", "notas", "resultados"})
 
     def _construir(self) -> None:
         raiz = QVBoxLayout(self)
@@ -133,7 +136,7 @@ class VistaEstadisticas(VistaBase):
                 grafico.establecer([])
             _vaciar(self._caja_materias, "Sin proyecto seleccionado.")
             _vaciar(self._caja_proyectos, "")
-            _limpiar(self._caja_atencion)
+            vaciar(self._caja_atencion)
             self._tarjeta_atencion.setVisible(False)
             return
 
@@ -166,8 +169,9 @@ class VistaEstadisticas(VistaBase):
         # Las dos consultas alimentan dos tarjetas: se piden una sola vez.
         por_materia = self.contexto.sesiones.segundos_por_materia(proyecto.id)
         sin_clasificar = self.contexto.sesiones.segundos_sin_clasificar(proyecto.id)
-        self._pintar_materias(proyecto.id, por_materia, sin_clasificar)
-        self._pintar_atencion(proyecto.id, por_materia, sin_clasificar)
+        avance = self.contexto.progreso.resumen(proyecto.id)
+        self._pintar_materias(avance, por_materia, sin_clasificar)
+        self._pintar_atencion(avance, por_materia, sin_clasificar)
         self._pintar_proyectos()
 
     def _pintar_cumplimiento(self, proyecto_id: int, hoy: date) -> None:
@@ -192,15 +196,21 @@ class VistaEstadisticas(VistaBase):
     def _por_semana(self, proyecto_id: int, hoy: date) -> list[tuple[str, float]]:
         """Horas de las ultimas semanas, de lunes a domingo."""
         lunes = hoy - timedelta(days=hoy.weekday())
-        barras = []
-        for atras in range(_SEMANAS - 1, -1, -1):
-            inicio = lunes - timedelta(weeks=atras)
-            fin = inicio + timedelta(days=6)
-            segundos = self.contexto.sesiones.segundos_trabajo(
-                proyecto_id, desde=inicio.isoformat(), hasta=fin.isoformat()
+        primero = lunes - timedelta(weeks=_SEMANAS - 1)
+        # Una consulta para todo el rango y se agrupa por semana aqui: antes era
+        # una consulta por barra.
+        por_dia = self.contexto.sesiones.segundos_por_dia(
+            proyecto_id, primero.isoformat(), (lunes + timedelta(days=6)).isoformat()
+        )
+        semanas = [0] * _SEMANAS
+        for fecha, segundos in por_dia.items():
+            semanas[(date.fromisoformat(fecha) - primero).days // 7] += segundos
+        return [
+            (f"{inicio.day}/{inicio.month}", segundos / 3600)
+            for inicio, segundos in (
+                (primero + timedelta(weeks=n), s) for n, s in enumerate(semanas)
             )
-            barras.append((f"{inicio.day}/{inicio.month}", segundos / 3600))
-        return barras
+        ]
 
     def _por_mes(self, proyecto_id: int, hoy: date) -> list[tuple[str, float]]:
         """Horas de los ultimos meses naturales."""
@@ -213,19 +223,20 @@ class VistaEstadisticas(VistaBase):
             if mes == 0:
                 ano, mes = ano - 1, 12
 
+        ano_min, mes_min = pendientes[-1]
+        por_mes = self.contexto.sesiones.segundos_por_periodo(
+            proyecto_id, date(ano_min, mes_min, 1).isoformat(), hoy.isoformat(), "%Y-%m"
+        )
         for ano_, mes_ in reversed(pendientes):
             inicio = date(ano_, mes_, 1)
-            fin = date(ano_ + (mes_ == 12), mes_ % 12 + 1, 1) - timedelta(days=1)
-            segundos = self.contexto.sesiones.segundos_trabajo(
-                proyecto_id, desde=inicio.isoformat(), hasta=fin.isoformat()
-            )
+            segundos = por_mes.get(f"{ano_:04d}-{mes_:02d}", 0)
             barras.append((formato.fecha_corta(inicio).split()[1], segundos / 3600))
         return barras
 
     def _pintar_materias(
-        self, proyecto_id: int, por_materia: dict[int, int], sin_clasificar: int
+        self, avance: ResumenProgreso, por_materia: dict[int, int], sin_clasificar: int
     ) -> None:
-        _limpiar(self._caja_materias)
+        vaciar(self._caja_materias)
         # El porcentaje es la parte del tiempo total de estudio, no la
         # comparacion con la materia mayor: si no, la primera siempre sale al
         # 100 % y el bloque se lee como un reparto que no es.
@@ -239,7 +250,7 @@ class VistaEstadisticas(VistaBase):
                 "es lo que alimenta este bloque.",
             )
         else:
-            materias = {m.id: m.nombre for m in self.contexto.materias.listar(proyecto_id)}
+            materias = {m.materia_id: m.nombre for m in avance.materias}
             ordenadas = sorted(por_materia.items(), key=lambda par: par[1], reverse=True)
             for indice, (materia_id, segundos) in enumerate(ordenadas):
                 nombre = materias.get(materia_id, "—")
@@ -254,15 +265,14 @@ class VistaEstadisticas(VistaBase):
             self._caja_materias.addWidget(nota)
 
     def _pintar_atencion(
-        self, proyecto_id: int, por_materia: dict[int, int], sin_clasificar: int
+        self, avance: ResumenProgreso, por_materia: dict[int, int], sin_clasificar: int
     ) -> None:
         """Donde pones las horas frente a lo que cada asignatura pesa.
 
         La tarjeta entera desaparece si el proyecto no reparte pesos: sin peso
         no hay objetivo con el que comparar y seria una lista de obviedades.
         """
-        _limpiar(self._caja_atencion)
-        avance = self.contexto.progreso.resumen(proyecto_id)
+        vaciar(self._caja_atencion)
         desvios = avance.desvio_atencion(por_materia)
         self._tarjeta_atencion.setVisible(bool(desvios))
         if not desvios:
@@ -319,11 +329,9 @@ class VistaEstadisticas(VistaBase):
         self._caja_atencion.addWidget(nota)
 
     def _pintar_proyectos(self) -> None:
-        _limpiar(self._caja_proyectos)
-        proyectos = self.contexto.proyectos.listar()
-        totales = [
-            (p.nombre, self.contexto.sesiones.segundos_trabajo(p.id)) for p in proyectos
-        ]
+        vaciar(self._caja_proyectos)
+        por_proyecto = self.contexto.sesiones.segundos_por_proyecto()
+        totales = [(p.nombre, por_proyecto.get(p.id, 0)) for p in self.contexto.proyectos.listar()]
         mayor = max((s for _, s in totales), default=0)
         if not mayor:
             _vaciar(self._caja_proyectos, "Todavia no hay tiempo registrado.")
@@ -334,14 +342,9 @@ class VistaEstadisticas(VistaBase):
             self._caja_proyectos.addWidget(barra)
 
 
-def _limpiar(caja: QVBoxLayout) -> None:
-    while (elemento := caja.takeAt(0)) is not None:
-        if (widget := elemento.widget()) is not None:
-            widget.deleteLater()
-
 
 def _vaciar(caja: QVBoxLayout, mensaje: str) -> None:
-    _limpiar(caja)
+    vaciar(caja)
     if not mensaje:
         return
     etiqueta = QLabel(mensaje)

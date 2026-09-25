@@ -2,11 +2,35 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QRectF, Qt
+from PySide6.QtCore import QRect, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from mukuwareru.ui.tema import tokens
+
+
+def pintar_arco(
+    pintor: QPainter, caja: QRect, grosor: int, fraccion: float, color: str, *, holgura: int = 1
+) -> None:
+    """Pista completa y, encima, el arco de ``fraccion`` (0 a 1) desde arriba.
+
+    Es lo comun a los dos anillos, el de progreso y el del reloj: cada uno
+    pinta despues su propio texto en el centro.
+    """
+    margen = grosor / 2 + holgura
+    area = QRectF(caja).adjusted(margen, margen, -margen, -margen)
+
+    pista = QPen(QColor(tokens.SUPERFICIE_ALTA), grosor)
+    pista.setCapStyle(Qt.PenCapStyle.FlatCap)
+    pintor.setPen(pista)
+    pintor.drawArc(area, 0, 360 * 16)
+
+    if fraccion > 0:
+        arco = QPen(QColor(color), grosor)
+        arco.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pintor.setPen(arco)
+        # Arranca arriba (90 grados) y avanza en sentido horario.
+        pintor.drawArc(area, 90 * 16, -int(360 * 16 * fraccion))
 
 
 class AnilloProgreso(QWidget):
@@ -40,20 +64,7 @@ class AnilloProgreso(QWidget):
         pintor = QPainter(self)
         pintor.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        margen = self._grosor / 2 + 1
-        area = QRectF(margen, margen, self.width() - 2 * margen, self.height() - 2 * margen)
-
-        pista = QPen(QColor(tokens.SUPERFICIE_ALTA), self._grosor)
-        pista.setCapStyle(Qt.PenCapStyle.FlatCap)
-        pintor.setPen(pista)
-        pintor.drawArc(area, 0, 360 * 16)
-
-        if self._porcentaje > 0:
-            arco = QPen(QColor(self._color), self._grosor)
-            arco.setCapStyle(Qt.PenCapStyle.RoundCap)
-            pintor.setPen(arco)
-            # Arranca arriba (90 grados) y avanza en sentido horario.
-            pintor.drawArc(area, 90 * 16, -int(360 * 16 * self._porcentaje / 100))
+        pintar_arco(pintor, self.rect(), self._grosor, self._porcentaje / 100, self._color)
 
         pintor.setPen(QColor(tokens.TEXTO))
         fuente = QFont(tokens.FUENTE, 30)
