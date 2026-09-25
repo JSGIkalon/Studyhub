@@ -94,7 +94,6 @@ def main() -> int:
     _carga(ventana, contexto, proyecto.id, app)
     _resultados(ventana, contexto, proyecto.id, app)
     _calculadora(ventana, contexto, proyecto.id, app)
-    _grafo(ventana, contexto, proyecto.id, app)
     _pomodoro(ventana, contexto, proyecto.id, app)
     _configuracion_pomodoro(ventana, contexto, app)
     _trabajo_indefinido(ventana, contexto, proyecto.id, app)
@@ -644,120 +643,6 @@ def _calculadora(
     contexto.resultados.eliminar(parcial.id)
     contexto.resultados.eliminar(final.id)
     contexto.resultados.fijar_escala(proyecto_id, EscalaNotas())
-    contexto.notificar_cambio()
-
-
-def _grafo(
-    ventana: VentanaPrincipal, contexto: Contexto, proyecto_id: int, app: QApplication
-) -> None:
-    """Lienzo: colocar, no duplicar, conectar, estados y pintado real."""
-    from mukuwareru.nucleo.modelos import DestinoNodo, EstadoNodo
-    from mukuwareru.nucleo.servicios import CicloError
-    from mukuwareru.ui.grafo import ItemNodo
-
-    print("\n--- GRAFO DE DEPENDENCIAS ---")
-    # Materias propias y no las del temario: las pruebas anteriores dejan
-    # modulos marcados, y el estado de un nodo depende justo de eso. Con las
-    # suyas, lo que se comprueba es la regla y no el orden de los bloques.
-    antes_de_materias = len(contexto.materias.listar(proyecto_id))
-    materias = [
-        contexto.materias.crear(proyecto_id, "Grafo · Calculus", orden=900),
-        contexto.materias.crear(proyecto_id, "Grafo · Quant Finance", orden=901),
-    ]
-    contexto.modulos.crear(materias[0].id, "Grafo · LM 1")
-    contexto.modulos.crear(materias[1].id, "Grafo · LM 1")
-
-    ventana.ir_a("grafo")
-    app.processEvents()
-    vista = ventana.vista("grafo")
-    assert vista is not None
-    comprobar(
-        ventana.conmutador.currentWidget() is vista, "la seccion Grafo esta en el catalogo"
-    )
-
-    servicio = contexto.servicio_grafo
-    uno = servicio.agregar(proyecto_id, DestinoNodo.MATERIA, materias[0].id, 0, 0)
-    dos = servicio.agregar(proyecto_id, DestinoNodo.MATERIA, materias[1].id, 320, 0)
-    vista.marcar_sucia()
-    vista.refrescar_si_hace_falta()
-    app.processEvents()
-
-    nodos = [i for i in vista._lienzo.scene().items() if isinstance(i, ItemNodo)]
-    comprobar(len(nodos) == 2, "los dos nodos aparecen en el lienzo")
-    comprobar(
-        all(n.resuelto.estado is EstadoNodo.DISPONIBLE for n in nodos),
-        "sin prerrequisitos, los dos estan disponibles",
-    )
-
-    # El invariante central: soltar dos veces la misma materia no la duplica.
-    servicio.agregar(proyecto_id, DestinoNodo.MATERIA, materias[0].id, 50, 50)
-    comprobar(
-        len(servicio.cargar(proyecto_id).nodos) == 2,
-        "arrastrar la misma materia otra vez no crea una copia",
-    )
-
-    servicio.conectar(dos.id, uno.id)
-    grafo = servicio.cargar(proyecto_id)
-    comprobar(
-        grafo.por_id(dos.id).estado is EstadoNodo.BLOQUEADO,
-        "con un prerrequisito sin cumplir, el nodo queda bloqueado",
-    )
-
-    cerro = False
-    try:
-        servicio.conectar(uno.id, dos.id)
-    except CicloError:
-        cerro = True
-    comprobar(cerro, "un ciclo se rechaza")
-    comprobar(len(servicio.cargar(proyecto_id).aristas) == 1, "y no deja nada escrito")
-
-    # Completar la primera materia desde donde se hace de verdad: la vista
-    # Progreso. El grafo tiene que enterarse sin que nadie se lo diga.
-    for modulo in contexto.modulos.listar(materias[0].id):
-        contexto.progreso.marcar(modulo.id, True)
-    grafo = servicio.cargar(proyecto_id)
-    comprobar(
-        grafo.por_id(uno.id).estado is EstadoNodo.COMPLETADO,
-        "marcar los modulos en Progreso completa el nodo",
-    )
-    comprobar(
-        grafo.por_id(dos.id).estado is EstadoNodo.DISPONIBLE,
-        "y desbloquea lo que dependia de el",
-    )
-
-    vista.marcar_sucia()
-    vista.refrescar_si_hace_falta()
-    vista._lienzo.encajar()
-    app.processEvents()
-
-    # Un item que no pinta nada no falla ningun assert, asi que se mira el
-    # pixel: es como se cazo el fallo de las miniaturas del lector.
-    imagen = vista._lienzo.grab().toImage()
-    fondo = imagen.pixelColor(2, 2)
-    distintos = any(
-        imagen.pixelColor(x, y) != fondo
-        for x in range(0, imagen.width(), 7)
-        for y in range(0, imagen.height(), 7)
-    )
-    comprobar(distintos, "el lienzo pinta algo de verdad")
-
-    # Se deja el proyecto como estaba: los nodos se quitan y las materias no.
-    for nodo in servicio.cargar(proyecto_id).nodos:
-        servicio.eliminar(nodo.nodo.id)
-    comprobar(servicio.cargar(proyecto_id).vacio, "quitar los nodos vacia el grafo")
-    comprobar(
-        len(contexto.materias.listar(proyecto_id)) == antes_de_materias + 2,
-        "y no se lleva por delante ninguna materia",
-    )
-
-    # Ahora si se borran las materias de prueba, y con ellas —en cascada— lo que
-    # quedara del grafo. El proyecto vuelve a como estaba.
-    for materia in materias:
-        contexto.materias.eliminar(materia.id)
-    comprobar(
-        len(contexto.materias.listar(proyecto_id)) == antes_de_materias,
-        "el proyecto queda como estaba",
-    )
     contexto.notificar_cambio()
 
 

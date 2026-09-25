@@ -38,10 +38,8 @@ from mukuwareru.ui.paleta import Paleta
 from mukuwareru.ui.vistas import SECCIONES, VistaBase
 from mukuwareru.ui.vistas.biblioteca import VistaBiblioteca
 from mukuwareru.ui.vistas.bienvenida import PanelBienvenida
-from mukuwareru.ui.vistas.grafo import VistaGrafo
 from mukuwareru.ui.vistas.notas import VistaNotas
 from mukuwareru.ui.vistas.pomodoro import VistaPomodoro
-from mukuwareru.ui.vistas.progreso import VistaProgreso
 from mukuwareru.utilidades import rutas
 from mukuwareru.utilidades.registro import obtener
 
@@ -152,8 +150,6 @@ class VentanaPrincipal(QMainWindow):
             biblioteca.abrir_documento.connect(self.abrir_lector)
         if isinstance(notas := self._vistas.get("notas"), VistaNotas):
             notas.abrir_en_pagina.connect(self.abrir_lector)
-        if isinstance(grafo := self._vistas.get("grafo"), VistaGrafo):
-            grafo.abrir_entidad.connect(self.abrir_entidad)
 
         fila.addWidget(self.conmutador, 1)
         self.setCentralWidget(central)
@@ -386,29 +382,6 @@ class VentanaPrincipal(QMainWindow):
         self.conmutador.setCurrentWidget(self.bienvenida)
         self.barra_lateral.habilitar_secciones(False)
         return False
-
-    def abrir_entidad(self, destino: str, objeto_id: int) -> None:
-        """Lleva a la seccion donde vive la entidad que pide el grafo.
-
-        El grafo no repite Progreso, Calendario ni Resultados: navega hasta
-        ellos. Es lo que hace que sea una vista mas del mismo sistema y no una
-        cuarta copia de los mismos datos.
-        """
-        if destino in ("materia", "modulo"):
-            self.ir_a("progreso")
-            vista = self._vistas.get("progreso")
-            if isinstance(vista, VistaProgreso):
-                materia_id = objeto_id
-                if destino == "modulo":
-                    modulo = self.contexto.modulos.obtener(objeto_id)
-                    if modulo is None:
-                        return
-                    materia_id = modulo.materia_id
-                vista.enfocar(materia_id)
-        elif destino == "hito":
-            self.ir_a("calendario")
-        elif destino == "evaluacion":
-            self.ir_a("resultados")
 
     def ir_a(self, clave: str) -> None:
         """Muestra la seccion indicada por su clave."""

@@ -18,7 +18,6 @@ from mukuwareru.ui.vistas.base import VistaBase, VistaPendiente
 from mukuwareru.ui.vistas.biblioteca import VistaBiblioteca
 from mukuwareru.ui.vistas.calendario import VistaCalendario
 from mukuwareru.ui.vistas.estadisticas import VistaEstadisticas
-from mukuwareru.ui.vistas.grafo import VistaGrafo
 from mukuwareru.ui.vistas.notas import VistaNotas
 from mukuwareru.ui.vistas.panel import VistaPanel
 from mukuwareru.ui.vistas.pomodoro import VistaPomodoro
@@ -49,10 +48,6 @@ SECCIONES: tuple[Seccion, ...] = (
     Seccion("notas", "Notas", "nota", VistaNotas),
     Seccion("calendario", "Calendario", "calendario", VistaCalendario),
     Seccion("progreso", "Progreso", "grafico", VistaProgreso),
-    # Justo detras de Progreso: el grafo es otra lectura del mismo temario, no
-    # una seccion independiente. `reconciliar_orden` la coloca sola en las
-    # instalaciones que ya tenian un orden guardado, sin migracion.
-    Seccion("grafo", "Grafo", "grafo", VistaGrafo),
     # Entre Progreso y Estadisticas a proposito: el orden mental es temario ->
     # notas -> tiempo. La clave nueva la coloca sola `reconciliar_orden` en las
     # instalaciones que ya tenian un orden guardado, sin migracion.

@@ -31,6 +31,7 @@ TEMARIO: dict[str, tuple[str, ...]] = {
         "Rates and Returns",
         "Time Value of Money in Finance",
         "Statistical Measures of Asset Returns",
+        "Probability Trees and Conditional Expectations",
         "Portfolio Mathematics",
         "Simulation Methods",
         "Estimation and Inference",

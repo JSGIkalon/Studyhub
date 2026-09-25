@@ -442,6 +442,7 @@ class _FilaEvaluacion(QWidget):
         detalle.setSpacing(0)
         titulo = QLabel(evaluacion.titulo)
         titulo.setStyleSheet("font-weight: 600;")
+        titulo.setWordWrap(True)
         detalle.addWidget(titulo)
 
         partes = [formato.fecha_corta(evaluacion.fecha)]
@@ -457,6 +458,9 @@ class _FilaEvaluacion(QWidget):
             partes.append(evaluacion.nota)
         pie = QLabel("  ·  ".join(partes))
         pie.setObjectName("TextoTenue")
+        # Una nota larga en una sola linea fijaba un ancho minimo enorme y
+        # empujaba toda la vista fuera de la pantalla.
+        pie.setWordWrap(True)
         detalle.addWidget(pie)
         fila.addLayout(detalle, 1)
 

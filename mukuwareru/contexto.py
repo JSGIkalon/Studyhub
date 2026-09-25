@@ -19,7 +19,6 @@ from mukuwareru.nucleo.repositorios import (
     RepositorioDocumentos,
     RepositorioEtiquetas,
     RepositorioEvaluaciones,
-    RepositorioGrafo,
     RepositorioHitos,
     RepositorioMaterias,
     RepositorioModulos,
@@ -33,7 +32,6 @@ from mukuwareru.nucleo.servicios import (
     ServicioCalendario,
     ServicioCarga,
     ServicioEstadisticas,
-    ServicioGrafo,
     ServicioImportacion,
     ServicioNotas,
     ServicioPlan,
@@ -76,7 +74,6 @@ class Contexto(QObject):
         self.hitos = RepositorioHitos(conexion)
         self.bloques = RepositorioBloques(conexion)
         self.evaluaciones = RepositorioEvaluaciones(conexion)
-        self.grafo = RepositorioGrafo(conexion)
 
         self.progreso = ServicioProgreso(conexion)
         self.resultados = ServicioResultados(conexion)
@@ -90,7 +87,6 @@ class Contexto(QObject):
         self.busqueda = ServicioBusqueda(conexion)
         self.plan = ServicioPlan(conexion)
         self.carga = ServicioCarga(conexion)
-        self.servicio_grafo = ServicioGrafo(conexion)
 
         self._activo: Proyecto | None = None
 

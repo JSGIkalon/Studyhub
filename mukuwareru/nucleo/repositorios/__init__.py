@@ -10,7 +10,6 @@ from mukuwareru.nucleo.repositorios.evaluaciones import (
     LineaPesada,
     RepositorioEvaluaciones,
 )
-from mukuwareru.nucleo.repositorios.grafo import RepositorioGrafo
 from mukuwareru.nucleo.repositorios.hitos import RepositorioHitos
 from mukuwareru.nucleo.repositorios.materias import RepositorioMaterias
 from mukuwareru.nucleo.repositorios.modulos import ConteoMateria, RepositorioModulos
@@ -29,7 +28,6 @@ __all__ = [
     "RepositorioDocumentos",
     "RepositorioEtiquetas",
     "RepositorioEvaluaciones",
-    "RepositorioGrafo",
     "RepositorioHitos",
     "RepositorioMaterias",
     "RepositorioModulos",
