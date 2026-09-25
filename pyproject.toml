@@ -46,3 +46,4 @@ strict = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["ui: recorre la interfaz real (lento); se salta con -m \"not ui\""]

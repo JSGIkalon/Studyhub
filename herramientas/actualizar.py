@@ -29,8 +29,8 @@ HERRAMIENTAS = RAIZ / "herramientas"
 _COMPROBACIONES = (
     ("ruff", [sys.executable, "-m", "ruff", "check", "."]),
     ("mypy", [sys.executable, "-m", "mypy", "mukuwareru/nucleo"]),
+    # pytest incluye la prueba de humo de la interfaz (tests/test_humo.py).
     ("pytest", [sys.executable, "-m", "pytest", "-q"]),
-    ("humo", [sys.executable, str(HERRAMIENTAS / "humo.py")]),
 )
 
 

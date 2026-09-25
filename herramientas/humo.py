@@ -1,4 +1,4 @@
-﻿"""Prueba de humo de la interfaz.
+"""Prueba de humo de la interfaz.
 
     python herramientas/humo.py
 
@@ -14,7 +14,9 @@ desarrollo, no codigo de produccion.
 
 from __future__ import annotations
 
+import atexit
 import os
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -51,6 +53,13 @@ EXCEL = RAIZ / "CFA.xlsx"
 _fallos: list[str] = []
 
 
+def _carpeta_temporal() -> str:
+    """Carpeta temporal que se borra al salir: antes se quedaban en %TEMP%."""
+    carpeta = tempfile.mkdtemp(prefix="mukuwareru-humo-")
+    atexit.register(shutil.rmtree, carpeta, ignore_errors=True)
+    return carpeta
+
+
 def comprobar(condicion: bool, mensaje: str) -> None:
     """Registra el resultado de una comprobacion."""
     print(("  OK     " if condicion else "  FALLA  ") + mensaje)
@@ -60,7 +69,7 @@ def comprobar(condicion: bool, mensaje: str) -> None:
 
 def main() -> int:
     """Ejecuta la prueba y devuelve el codigo de salida."""
-    conn = bd.abrir(Path(tempfile.mkdtemp()) / "humo.db")
+    conn = bd.abrir(Path(_carpeta_temporal()) / "humo.db")
     app = QApplication(sys.argv)
     aplicar(app)
 
@@ -134,7 +143,7 @@ def _estado_vacio(app: QApplication) -> None:
     que la interfaz tuviera datos ahora lo garantiza el estado vacio.
     """
     print("\n--- ESTADO VACIO ---")
-    conn = bd.abrir(Path(tempfile.mkdtemp()) / "vacia.db")
+    conn = bd.abrir(Path(_carpeta_temporal()) / "vacia.db")
     contexto = Contexto(conn)
     comprobar(not contexto.proyectos.listar(), "una base nueva no trae proyectos")
 
@@ -183,7 +192,7 @@ def _estado_vacio(app: QApplication) -> None:
 def _crud_proyectos(app: QApplication) -> None:
     """Crear, editar, reordenar, archivar y borrar desde la ventana."""
     print("\n--- GESTION DE PROYECTOS ---")
-    conn = bd.abrir(Path(tempfile.mkdtemp()) / "crud.db")
+    conn = bd.abrir(Path(_carpeta_temporal()) / "crud.db")
     contexto = Contexto(conn)
     servicio = contexto.servicio_proyectos
 
@@ -1384,7 +1393,7 @@ def _notas(ventana: VentanaPrincipal, contexto: Contexto, app: QApplication) -> 
     comprobar(vista._arbol.topLevelItemCount() >= 1, "el arbol trae al menos «Todas»")
 
     # Crear una nota no debe obligar a elegir cuaderno antes.
-    vista._nueva_nota()
+    vista.nueva_nota()
     app.processEvents()
     comprobar(contexto.notas.contar(proyecto.id) == 1, "se crea la nota sin elegir destino")
     nota = vista._nota_abierta
