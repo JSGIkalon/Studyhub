@@ -1613,7 +1613,7 @@ python herramientas/actualizar.py --rapido      # igual, sin regenerar el instal
 python herramientas/construir.py                # compilar el .exe
 python herramientas/instalar.py                 # instalar / actualizar esta maquina
 python herramientas/empaquetar.py               # instalador para otras maquinas
-python herramientas/copiar_datos.py <destino>   # llevar datos a una instalacion
+python herramientas/copiar_datos.py <destino.db> # llevar datos a una instalacion (destino obligatorio)
 python herramientas/respaldar.py                # copia verificada en OneDrive
 herramientas\Respaldar.cmd                      # lo mismo, con doble clic
 python herramientas/generar_icono.py            # regenerar mukuwareru.ico

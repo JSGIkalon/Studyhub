@@ -2,8 +2,8 @@
 
     python herramientas/instalar.py [carpeta]
 
-Copia ``Mukuwareru.exe`` y ``_internal/`` desde ``dist/Mukuwareru/`` a la carpeta de
-instalacion y **nunca toca** ``datos/``, ``Library/`` ni ``logs/``. Ese es
+Copia ``Mukuwareru.exe`` y ``_internal/`` desde la compilacion (ver ``construir.py``) a la
+carpeta de instalacion y **nunca toca** ``datos/``, ``Library/`` ni ``logs/``. Ese es
 exactamente el requisito de poder actualizar el ejecutable sin perder la
 informacion del usuario.
 
@@ -19,27 +19,23 @@ Al terminar crea un acceso directo en el Escritorio.
 
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from construir import COMPILADO as ORIGEN  # una sola definicion de la ruta
+
+from herramientas._comun import carpeta_instalacion
 
 GENERADO = ("Mukuwareru.exe", "_internal")
 DEL_USUARIO = ("datos", "Library", "logs")
 
 # La aplicacion se llamo StudyHub hasta la version 1.0.0.
 NOMBRE_ANTERIOR = "StudyHub"
-
-
-def destino_por_defecto() -> Path:
-    """Carpeta de instalacion habitual para una aplicacion de un solo usuario."""
-    base = os.environ.get("LOCALAPPDATA") or str(Path.home())
-    return Path(base) / "Programs" / "Mukuwareru"
 
 
 def _migrar_desde_studyhub(destino: Path) -> None:
@@ -140,5 +136,5 @@ def _crear_acceso_directo(exe: Path) -> None:
 
 
 if __name__ == "__main__":
-    ruta = Path(sys.argv[1]) if len(sys.argv) > 1 else destino_por_defecto()
+    ruta = Path(sys.argv[1]) if len(sys.argv) > 1 else carpeta_instalacion()
     sys.exit(main(ruta))

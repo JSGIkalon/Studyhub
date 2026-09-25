@@ -34,13 +34,13 @@ RAIZ = Path(__file__).resolve().parent.parent
 if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
+from herramientas._comun import base_instalada  # noqa: E402
 from mukuwareru.nucleo.bd import conexion as bd  # noqa: E402
 from mukuwareru.nucleo.repositorios import (  # noqa: E402
     RepositorioMaterias,
     RepositorioModulos,
     RepositorioProyectos,
 )
-from mukuwareru.utilidades import rutas  # noqa: E402
 
 PROYECTO = "CFA Level I"
 HOJA = "Módulos"
@@ -140,14 +140,16 @@ def main() -> int:
     analizador = argparse.ArgumentParser(description=__doc__)
     analizador.add_argument("--aplicar", action="store_true", help="escribe el archivo")
     analizador.add_argument("--excel", type=Path, default=RAIZ / "CFA.xlsx")
-    analizador.add_argument("--base", type=Path, default=None)
+    analizador.add_argument(
+        "--base", type=Path, default=None, help="base de datos (por defecto, la instalada)"
+    )
     argumentos = analizador.parse_args()
 
     if not argumentos.excel.exists():
         print(f"No se encuentra {argumentos.excel}")
         return 1
 
-    filas = leer_temario(argumentos.base or rutas.ruta_base_datos())
+    filas = leer_temario(argumentos.base or base_instalada())
     hechos = sum(1 for _t, _m, h in filas if h)
     print(f"Temario en la aplicacion: {len(filas)} modulos, {hechos} completados")
 

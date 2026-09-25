@@ -24,8 +24,7 @@ para deshacer una migracion, no para sobrevivir a un disco que falla.
 
 Como copia
 ----------
-Con `sqlite3.backup()`, no copiando el archivo. Es lo mismo que hace
-`copiar_datos.py` y por la misma razon: consolida el WAL y deja un destino
+Con `sqlite3.backup()`, no copiando el archivo. Consolida el WAL y deja un destino
 consistente aunque la base estuviera abierta en ese momento. Copiar el `.db` a
 pelo mientras la aplicacion corre produce una copia que puede faltarle las
 ultimas transacciones, o directamente no abrir.
@@ -43,22 +42,15 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-NOMBRE_APP = "Mukuwareru"
+RAIZ = Path(__file__).resolve().parent.parent
+if str(RAIZ) not in sys.path:
+    sys.path.insert(0, str(RAIZ))
+
+from herramientas._comun import base_instalada  # noqa: E402
+from mukuwareru.utilidades.rutas import NOMBRE_APP  # noqa: E402
+
 CARPETA_RESPALDOS = f"{NOMBRE_APP}-Respaldos"
 CONSERVAR_POR_DEFECTO = 14
-
-RAIZ = Path(__file__).resolve().parent.parent
-
-
-def base_instalada() -> Path:
-    """La base que usa de verdad el ejecutable instalado.
-
-    Es el origen por defecto a proposito. Hay dos bases —la del repositorio y la
-    de la instalacion— y respaldar la equivocada es el fallo silencioso mas facil
-    de cometer aqui; la que tiene los datos del usuario es la instalada.
-    """
-    base = os.environ.get("LOCALAPPDATA") or str(Path.home())
-    return Path(base) / "Programs" / NOMBRE_APP / "datos" / "basedatos.db"
 
 
 def destino_por_defecto() -> Path:

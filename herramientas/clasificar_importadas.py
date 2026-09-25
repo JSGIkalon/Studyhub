@@ -18,18 +18,16 @@ instalada, que es donde vive lo que el usuario ve.
 from __future__ import annotations
 
 import argparse
-import os
-import sqlite3
 import sys
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
+if str(RAIZ) not in sys.path:
+    sys.path.insert(0, str(RAIZ))
 
-
-def bd_instalada() -> Path:
-    """Base de datos de la aplicacion instalada en esta maquina."""
-    base = os.environ.get("LOCALAPPDATA") or str(Path.home())
-    return Path(base) / "Programs" / "Mukuwareru" / "datos" / "basedatos.db"
+from herramientas._comun import base_instalada  # noqa: E402
+from mukuwareru.nucleo.bd import conexion as bd  # noqa: E402
+from mukuwareru.nucleo.repositorios.base import transaccion  # noqa: E402
 
 
 def main(materia: str, proyecto_id: int, ruta: Path, ensayo: bool) -> int:
@@ -38,8 +36,9 @@ def main(materia: str, proyecto_id: int, ruta: Path, ensayo: bool) -> int:
         print(f"No existe {ruta}")
         return 1
 
-    cx = sqlite3.connect(str(ruta))
-    cx.row_factory = sqlite3.Row
+    # `abrir` y no `sqlite3.connect`: activa las claves foraneas y deja la base
+    # migrada, igual que la aplicacion.
+    cx = bd.abrir(ruta)
     try:
         fila = cx.execute(
             "SELECT id, nombre FROM materia WHERE proyecto_id = ? AND nombre = ?",
@@ -83,7 +82,7 @@ def main(materia: str, proyecto_id: int, ruta: Path, ensayo: bool) -> int:
             print("\n--ensayo: no se escribio nada.")
             return 0
 
-        with cx:
+        with transaccion(cx):
             cx.executemany(
                 "INSERT INTO sesion_materia (sesion_id, materia_id) VALUES (?, ?)",
                 [(int(f["id"]), materia_id) for f in pendientes],
@@ -109,7 +108,7 @@ if __name__ == "__main__":
         main(
             argumentos.materia,
             argumentos.proyecto,
-            argumentos.bd or bd_instalada(),
+            argumentos.bd or base_instalada(),
             argumentos.ensayo,
         )
     )

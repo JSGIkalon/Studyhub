@@ -30,6 +30,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
+from herramientas._comun import base_instalada  # noqa: E402
 from herramientas.temario_cfa import (  # noqa: E402
     RENOMBRADOS,
     TEMARIO,
@@ -42,7 +43,7 @@ from mukuwareru.nucleo.repositorios import (  # noqa: E402
     RepositorioModulos,
     RepositorioProyectos,
 )
-from mukuwareru.utilidades import rutas  # noqa: E402
+from mukuwareru.nucleo.repositorios.base import transaccion  # noqa: E402
 
 PROYECTO = "CFA Level I"
 
@@ -128,7 +129,7 @@ def aplicar(conexion: sqlite3.Connection, proyecto_id: int, plan: Plan) -> None:
     materias = RepositorioMaterias(conexion)
     modulos = RepositorioModulos(conexion)
 
-    with conexion:
+    with transaccion(conexion):
         for _tema, identificador, _antes, despues in plan.renombrar:
             modulos.renombrar(identificador, despues)
         for _tema, materia_id, nombre, hecho in plan.crear:
@@ -224,11 +225,11 @@ def main() -> int:
         "--forzar", action="store_true", help="permite borrar modulos completados"
     )
     analizador.add_argument(
-        "--base", type=Path, default=None, help="ruta a otra base de datos"
+        "--base", type=Path, default=None, help="otra base de datos (por defecto, la instalada)"
     )
     argumentos = analizador.parse_args()
 
-    ruta = argumentos.base or rutas.ruta_base_datos()
+    ruta = argumentos.base or base_instalada()
     print(f"Base de datos: {ruta}")
     conexion = bd.abrir(ruta)
 

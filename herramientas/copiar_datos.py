@@ -1,13 +1,16 @@
-"""Copia la base de datos de desarrollo a la carpeta del ejecutable.
+"""Copia la base de datos de desarrollo sobre la de una instalacion.
 
-    python herramientas/copiar_datos.py [destino]
+    python herramientas/copiar_datos.py <destino\\basedatos.db>
 
 Usa la API de respaldo de SQLite en lugar de copiar archivos: asi el WAL se
 consolida y el destino queda consistente aunque el origen estuviera abierto.
 
-Sirve para estrenar una version compilada sin perder lo ya registrado. En el uso
-normal no hace falta: el ejecutable conserva su propio ``datos/`` entre
+Sirve para estrenar una instalacion con lo ya registrado en desarrollo. En el
+uso normal no hace falta: el ejecutable conserva su propio ``datos/`` entre
 actualizaciones.
+
+El destino es **obligatorio** a proposito: esto sobrescribe una base entera, y
+un valor por defecto haria que ejecutarlo sin pensar pisara los datos reales.
 """
 
 from __future__ import annotations
@@ -17,8 +20,12 @@ import sys
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
+if str(RAIZ) not in sys.path:
+    sys.path.insert(0, str(RAIZ))
+
+from herramientas.respaldar import verificar  # noqa: E402
+
 ORIGEN = RAIZ / "datos" / "basedatos.db"
-DESTINO_POR_DEFECTO = RAIZ / "dist" / "Mukuwareru" / "datos" / "basedatos.db"
 
 
 def main(destino: Path) -> int:
@@ -43,23 +50,14 @@ def main(destino: Path) -> int:
         copia.close()
         origen.close()
 
-    comprobacion = sqlite3.connect(str(destino))
-    try:
-        proyectos = comprobacion.execute("SELECT COUNT(*) FROM proyecto").fetchone()[0]
-        modulos = comprobacion.execute(
-            "SELECT COUNT(*), COALESCE(SUM(completado), 0) FROM modulo"
-        ).fetchone()
-        sesiones = comprobacion.execute("SELECT COUNT(*) FROM sesion").fetchone()[0]
-    finally:
-        comprobacion.close()
-
+    correcta, detalle = verificar(destino)
     print(f"Copiado a {destino}")
-    print(f"  proyectos: {proyectos}")
-    print(f"  modulos:   {modulos[1]} / {modulos[0]} completados")
-    print(f"  sesiones:  {sesiones}")
-    return 0
+    print(f"  {detalle}")
+    return 0 if correcta else 1
 
 
 if __name__ == "__main__":
-    ruta = Path(sys.argv[1]) if len(sys.argv) > 1 else DESTINO_POR_DEFECTO
-    sys.exit(main(ruta))
+    if len(sys.argv) != 2:
+        print(__doc__)
+        sys.exit(2)
+    sys.exit(main(Path(sys.argv[1])))
