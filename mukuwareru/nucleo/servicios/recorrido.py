@@ -188,13 +188,6 @@ class Recorrido:
         """Si el indice apunta a un bloque que existe."""
         return 0 <= indice < len(self.bloques)
 
-    def posicion_de(self, identificador: int) -> int:
-        """Indice del bloque con ese id, o ``-1`` si ya no esta."""
-        for posicion, bloque in enumerate(self.bloques):
-            if bloque.id == identificador:
-                return posicion
-        return -1
-
     def recorrido_de(self, indice: int) -> bool:
         """Si ese bloque ya quedo atras."""
         return indice < self.indice

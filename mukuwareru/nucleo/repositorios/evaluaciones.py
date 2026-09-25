@@ -18,6 +18,7 @@ from mukuwareru.nucleo.repositorios.base import (
     a_fecha,
     a_fecha_hora,
     ahora_iso,
+    transaccion,
 )
 
 _CAMPOS = """
@@ -98,13 +99,6 @@ class RepositorioEvaluaciones(Repositorio):
         evaluacion.materias = self.desglose_de(evaluacion_id)
         return evaluacion
 
-    def por_hito(self, hito_id: int) -> Evaluacion | None:
-        """El resultado anotado sobre una fecha del calendario, si lo hay."""
-        fila = self._cx.execute(
-            f"SELECT {_CAMPOS} FROM evaluacion WHERE hito_id = ?", (hito_id,)
-        ).fetchone()
-        return self.obtener(int(fila["id"])) if fila else None
-
     def crear(
         self,
         proyecto_id: int,
@@ -123,21 +117,22 @@ class RepositorioEvaluaciones(Repositorio):
         ``puntos_obtenidos`` en ``None`` da de alta una evaluacion **pendiente**:
         declarada con su peso y su fecha, sin nota todavia.
         """
-        cursor = self._cx.execute(
-            """
-            INSERT INTO evaluacion
-                (proyecto_id, hito_id, titulo, fecha, puntos_obtenidos,
-                 puntos_posibles, peso, nota, creado_en)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                proyecto_id, hito_id, titulo, fecha.isoformat(),
-                puntos_obtenidos, puntos_posibles, max(0.0, peso), nota, ahora_iso(),
-            ),
-        )
-        evaluacion_id = int(cursor.lastrowid or 0)
-        if materias:
-            self.desglosar(evaluacion_id, materias)
+        with transaccion(self._cx):
+            cursor = self._cx.execute(
+                """
+                INSERT INTO evaluacion
+                    (proyecto_id, hito_id, titulo, fecha, puntos_obtenidos,
+                     puntos_posibles, peso, nota, creado_en)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    proyecto_id, hito_id, titulo, fecha.isoformat(),
+                    puntos_obtenidos, puntos_posibles, max(0.0, peso), nota, ahora_iso(),
+                ),
+            )
+            evaluacion_id = int(cursor.lastrowid or 0)
+            if materias:
+                self.desglosar(evaluacion_id, materias)
         creada = self.obtener(evaluacion_id)
         assert creada is not None
         return creada
@@ -177,23 +172,24 @@ class RepositorioEvaluaciones(Repositorio):
 
         Pasar una secuencia vacia deja la evaluacion solo con su nota global.
         """
-        self._cx.execute(
-            "DELETE FROM evaluacion_materia WHERE evaluacion_id = ?", (evaluacion_id,)
-        )
-        self._cx.executemany(
-            """
-            INSERT INTO evaluacion_materia
-                (evaluacion_id, materia_id, puntos_obtenidos, puntos_posibles)
-            VALUES (?, ?, ?, ?)
-            """,
-            [
-                (
-                    evaluacion_id, linea.materia_id,
-                    linea.puntos_obtenidos, linea.puntos_posibles,
-                )
-                for linea in materias
-            ],
-        )
+        with transaccion(self._cx):
+            self._cx.execute(
+                "DELETE FROM evaluacion_materia WHERE evaluacion_id = ?", (evaluacion_id,)
+            )
+            self._cx.executemany(
+                """
+                INSERT INTO evaluacion_materia
+                    (evaluacion_id, materia_id, puntos_obtenidos, puntos_posibles)
+                VALUES (?, ?, ?, ?)
+                """,
+                [
+                    (
+                        evaluacion_id, linea.materia_id,
+                        linea.puntos_obtenidos, linea.puntos_posibles,
+                    )
+                    for linea in materias
+                ],
+            )
 
     def eliminar(self, evaluacion_id: int) -> None:
         """Borra la evaluacion y, en cascada, su desglose."""
@@ -235,13 +231,6 @@ class RepositorioEvaluaciones(Repositorio):
             )
             for f in filas
         ]
-
-    def conteo(self, proyecto_id: int) -> int:
-        """Cuantas evaluaciones tiene el proyecto. Para el estado vacio."""
-        fila = self._cx.execute(
-            "SELECT COUNT(*) FROM evaluacion WHERE proyecto_id = ?", (proyecto_id,)
-        ).fetchone()
-        return int(fila[0])
 
 
 def _a_linea(fila: sqlite3.Row) -> LineaEvaluacion:

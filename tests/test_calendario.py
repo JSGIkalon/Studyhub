@@ -202,11 +202,6 @@ def test_una_hora_corrupta_se_trata_como_bloque_sin_hora() -> None:
 # --- Hitos ------------------------------------------------------------------
 
 
-@pytest.fixture
-def proyecto(conn: sqlite3.Connection) -> Proyecto:
-    return RepositorioProyectos(conn).crear("CFA")
-
-
 def test_la_migracion_convierte_la_fecha_objetivo_en_hito(
     conn: sqlite3.Connection,
 ) -> None:

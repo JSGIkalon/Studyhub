@@ -44,8 +44,10 @@ def ids(conn: sqlite3.Connection, proyecto_id: int) -> tuple[int, int]:
 
 def pesar(conn: sqlite3.Connection, proyecto_id: int, *pesos: float) -> None:
     materias = RepositorioMaterias(conn)
-    for materia, peso in zip(materias.listar(proyecto_id), pesos, strict=False):
-        materias.fijar_peso(materia.id, peso)
+    materias.fijar_pesos(
+        proyecto_id,
+        {m.id: p for m, p in zip(materias.listar(proyecto_id), pesos, strict=False)},
+    )
 
 
 # --- Estado vacio ----------------------------------------------------------

@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from datetime import date
 
 from mukuwareru.nucleo.modelos.entidades import Materia, Prioridad
-from mukuwareru.nucleo.repositorios.base import Repositorio, a_fecha
+from mukuwareru.nucleo.repositorios.base import Repositorio, a_fecha, transaccion
 
 _CAMPOS = (
     "id, proyecto_id, nombre, orden, color, peso, "
@@ -169,19 +169,13 @@ class RepositorioMaterias(Repositorio):
 
     # -- Pesos -----------------------------------------------------------------
 
-    def fijar_peso(self, materia_id: int, peso: float) -> None:
-        """Cambia el peso de una materia. Un peso negativo se guarda como cero."""
-        self._cx.execute(
-            "UPDATE materia SET peso = ? WHERE id = ?", (max(0.0, peso), materia_id)
-        )
-
     def fijar_pesos(self, proyecto_id: int, pesos: Mapping[int, float]) -> None:
         """Escribe varios pesos de golpe, dentro de una unica transaccion.
 
         El `WHERE proyecto_id` es la misma defensa que en `reordenar`: un id que
         no sea del proyecto se ignora en vez de alterar otro temario.
         """
-        with self._cx:
+        with transaccion(self._cx):
             for materia_id, peso in pesos.items():
                 self._cx.execute(
                     "UPDATE materia SET peso = ? WHERE id = ? AND proyecto_id = ?",

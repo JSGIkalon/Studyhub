@@ -27,6 +27,7 @@ from mukuwareru.nucleo.repositorios import (
     RepositorioEvaluaciones,
     RepositorioMaterias,
 )
+from mukuwareru.nucleo.repositorios.base import transaccion
 
 # Claves de la escala en la tabla `ajuste`, por proyecto. Mismo patron que
 # `plan.minutos_por_dia`: tres valores sueltos no justifican una tabla.
@@ -211,13 +212,7 @@ class ResumenResultados:
         Las pendientes no participan. Contarlas como un cero diria «vas fatal»
         cuando lo cierto es «aun no lo has hecho».
         """
-        corregidas = self.corregidas
-        if not corregidas:
-            return 0
-        peso = sum(e.peso for e in corregidas)
-        if peso <= 0:
-            return round(sum(e.fraccion for e in corregidas) * 100 / len(corregidas))
-        return round(sum(e.peso * e.fraccion for e in corregidas) * 100 / peso)
+        return round(media_ponderada([(e.peso, e.fraccion) for e in self.corregidas]) * 100)
 
     @property
     def hay_pesos(self) -> bool:
@@ -275,6 +270,7 @@ class ServicioResultados:
     """Registra evaluaciones y calcula la nota que sale de ellas."""
 
     def __init__(self, conexion: sqlite3.Connection) -> None:
+        self._cx = conexion
         self._evaluaciones = RepositorioEvaluaciones(conexion)
         self._materias = RepositorioMaterias(conexion)
         self._ajustes = RepositorioAjustes(conexion)
@@ -299,9 +295,10 @@ class ServicioResultados:
         """Guarda la escala. Devuelve ``False``, sin escribir, si no es valida."""
         if not escala.valida:
             return False
-        self._ajustes.establecer(_ESCALA_MIN, repr(escala.minimo), proyecto_id)
-        self._ajustes.establecer(_ESCALA_MAX, repr(escala.maximo), proyecto_id)
-        self._ajustes.establecer(_ESCALA_APROBADO, repr(escala.aprobado), proyecto_id)
+        with transaccion(self._cx):
+            self._ajustes.establecer(_ESCALA_MIN, repr(escala.minimo), proyecto_id)
+            self._ajustes.establecer(_ESCALA_MAX, repr(escala.maximo), proyecto_id)
+            self._ajustes.establecer(_ESCALA_APROBADO, repr(escala.aprobado), proyecto_id)
         return True
 
     def _numero(self, clave: str, proyecto_id: int, por_defecto: float) -> float:
@@ -401,10 +398,10 @@ class ServicioResultados:
         evaluacion.hito_id = datos.hito_id
         evaluacion.nota = datos.nota
 
-        self._evaluaciones.actualizar(evaluacion)
-        self._evaluaciones.desglosar(
-            evaluacion_id, self._propias(evaluacion.proyecto_id, datos.materias)
-        )
+        propias = self._propias(evaluacion.proyecto_id, datos.materias)
+        with transaccion(self._cx):
+            self._evaluaciones.actualizar(evaluacion)
+            self._evaluaciones.desglosar(evaluacion_id, propias)
 
     def eliminar(self, evaluacion_id: int) -> None:
         """Borra una evaluacion. El desglose se va con ella."""
@@ -420,6 +417,22 @@ class ServicioResultados:
         """Descarta las lineas de materias que no son de este proyecto."""
         propias = {m.id for m in self._materias.listar(proyecto_id)}
         return [linea for linea in lineas if linea.materia_id in propias]
+
+
+def media_ponderada(pares: Sequence[tuple[float, float]]) -> float:
+    """Media de ``(peso, fraccion)`` ponderada por el peso.
+
+    Si todos los pesos son cero cae a la media aritmetica: un cero se leeria
+    como «lo hiciste fatal» cuando lo que dice es «no ponderes». Sin pares,
+    cero. Es el mismo criterio para la nota global, la de cada asignatura y la
+    calculadora, y por eso vive en un solo sitio.
+    """
+    if not pares:
+        return 0.0
+    peso = sum(p for p, _ in pares)
+    if peso > 0:
+        return sum(p * f for p, f in pares) / peso
+    return sum(f for _, f in pares) / len(pares)
 
 
 def calcular(
@@ -463,16 +476,9 @@ def calcular(
 
     peso_evaluado = sum(peso for peso, _ in corregidas)
     aporte = sum(peso * fraccion for peso, fraccion in corregidas)
-
-    if peso_evaluado > 0:
-        acumulada = aporte / peso_evaluado
-    elif corregidas:
-        # Todo con peso cero: la media aritmetica es mejor respuesta que un
-        # cero, igual que en `_nota_de`. Un historial de simulacros sin pesos
-        # tiene media, aunque no tenga nota final.
-        acumulada = sum(fraccion for _, fraccion in corregidas) / len(corregidas)
-    else:
-        acumulada = 0.0
+    # Todo con peso cero cae a la media aritmetica: un historial de simulacros
+    # sin pesos tiene media, aunque no tenga nota final.
+    acumulada = media_ponderada(corregidas)
 
     peso_total = peso_evaluado + peso_pendiente
     if peso_pendiente > 0:
@@ -499,13 +505,7 @@ def _nota_de(materia: Materia, lineas: Sequence[LineaPesada]) -> NotaAsignatura:
             materia_id=materia.id, nombre=materia.nombre, peso_materia=materia.peso
         )
 
-    peso = sum(linea.peso_evaluacion for linea in lineas)
-    if peso > 0:
-        fraccion = sum(linea.peso_evaluacion * linea.fraccion for linea in lineas) / peso
-    else:
-        # Todos los pesos a cero: la media aritmetica es mejor respuesta que un
-        # cero, que se leeria como «lo hiciste fatal» en vez de «no ponderes».
-        fraccion = sum(linea.fraccion for linea in lineas) / len(lineas)
+    fraccion = media_ponderada([(linea.peso_evaluacion, linea.fraccion) for linea in lineas])
 
     return NotaAsignatura(
         materia_id=materia.id,

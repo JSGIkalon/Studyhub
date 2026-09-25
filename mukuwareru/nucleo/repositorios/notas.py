@@ -6,9 +6,8 @@ desincronice: es el mismo patron que ``sesion.fecha_local``, no una tabla de
 cache.
 
 La mitad interesante son los metodos de **busqueda inversa** (``por_documento``,
-``por_materia``, ``por_modulo``, ``por_anotacion``): son el interlinkado leido en
-la otra direccion, que es lo que permite abrir un PDF y ver que notas hablan de
-esa pagina.
+``por_modulo``): son el interlinkado leido en la otra direccion, que es lo que
+permite abrir un PDF y ver que notas hablan de esa pagina.
 """
 
 from __future__ import annotations
@@ -18,15 +17,18 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from mukuwareru.nucleo.modelos.entidades import Nota, Vinculo
-from mukuwareru.nucleo.repositorios.base import Repositorio, a_fecha_hora, ahora_iso
+from mukuwareru.nucleo.repositorios.base import Repositorio, a_fecha_hora, ahora_iso, transaccion
 from mukuwareru.utilidades.texto import a_texto_plano
 
 _CAMPOS = """
     id, seccion_id, titulo, cuerpo, cuerpo_plano, orden, creado_en, actualizado_en
 """
 
+# Las listas no traen ``cuerpo``: puede llevar imagenes en base64 y ninguna
+# lista lo pinta (el editor abre la nota con ``obtener``). ``cuerpo_plano``, que
+# es lo que se busca y se previsualiza, si viene.
 _CAMPOS_N = """
-    n.id, n.seccion_id, n.titulo, n.cuerpo, n.cuerpo_plano, n.orden,
+    n.id, n.seccion_id, n.titulo, '' AS cuerpo, n.cuerpo_plano, n.orden,
     n.creado_en, n.actualizado_en
 """
 
@@ -190,9 +192,28 @@ class RepositorioNotas(Repositorio):
             for listada in listadas
         ]
 
-    def recientes(self, proyecto_id: int, limite: int = 5) -> list[NotaListada]:
-        """Ultimas notas modificadas, para el Panel."""
-        return self.listar_del_proyecto(proyecto_id, limite=limite)
+    def olvidadas(
+        self, proyecto_id: int, antes_de: str, limite: int
+    ) -> list[NotaListada]:
+        """Notas sin tocar desde ``antes_de`` (ISO), de la mas antigua a la mas nueva.
+
+        Filtra y ordena en SQL: el repaso quiere lo que lleva mas tiempo
+        olvidado, y leer todas las notas para quedarse con un punado era leer
+        el proyecto entero en cada refresco del Panel.
+        """
+        filas = self._cx.execute(
+            f"""
+            SELECT {_CAMPOS_N}, c.nombre AS cuaderno, s.nombre AS seccion
+              FROM nota n
+              JOIN seccion s  ON s.id = n.seccion_id
+              JOIN cuaderno c ON c.id = s.cuaderno_id
+             WHERE c.proyecto_id = ? AND n.actualizado_en < ?
+             ORDER BY n.actualizado_en, n.id
+             LIMIT ?
+            """,
+            (proyecto_id, antes_de, limite),
+        ).fetchall()
+        return [_a_listada(f) for f in filas]
 
     def contar(self, proyecto_id: int) -> int:
         """Numero de notas sueltas del proyecto."""
@@ -254,7 +275,7 @@ class RepositorioNotas(Repositorio):
 
     def reordenar(self, ids: Sequence[int]) -> None:
         """Fija ``orden`` = 0..n-1 segun la secuencia recibida."""
-        with self._cx:
+        with transaccion(self._cx):
             self._cx.executemany(
                 "UPDATE nota SET orden = ? WHERE id = ?",
                 [(posicion, id_) for posicion, id_ in enumerate(ids)],
@@ -280,7 +301,7 @@ class RepositorioNotas(Repositorio):
 
     def etiquetar(self, nota_id: int, etiquetas: Sequence[int]) -> None:
         """Reemplaza las etiquetas de la nota. Calca ``sesiones.etiquetar``."""
-        with self._cx:
+        with transaccion(self._cx):
             self._cx.execute("DELETE FROM nota_etiqueta WHERE nota_id = ?", (nota_id,))
             self._cx.executemany(
                 "INSERT INTO nota_etiqueta (nota_id, etiqueta_id) VALUES (?, ?)",
@@ -366,17 +387,9 @@ class RepositorioNotas(Repositorio):
             parametros.append(pagina)
         return self._por_vinculo(condicion, parametros)
 
-    def por_materia(self, materia_id: int) -> list[NotaListada]:
-        """Notas vinculadas a una materia."""
-        return self._por_vinculo("v.materia_id = ?", [materia_id])
-
     def por_modulo(self, modulo_id: int) -> list[NotaListada]:
         """Notas vinculadas a un modulo."""
         return self._por_vinculo("v.modulo_id = ?", [modulo_id])
-
-    def por_anotacion(self, anotacion_id: int) -> list[NotaListada]:
-        """Notas vinculadas a una anotacion concreta."""
-        return self._por_vinculo("v.anotacion_id = ?", [anotacion_id])
 
     def _por_vinculo(self, condicion: str, parametros: list[object]) -> list[NotaListada]:
         """Notas que tienen algun vinculo que cumpla la condicion.
@@ -411,20 +424,6 @@ class RepositorioNotas(Repositorio):
             (proyecto_id,),
         ).fetchall()
         return {int(f["documento_id"]): int(f["total"]) for f in filas}
-
-    def conteo_por_materia(self, proyecto_id: int) -> dict[int, int]:
-        """Notas vinculadas a cada materia, para los contadores de Progreso."""
-        filas = self._cx.execute(
-            """
-            SELECT v.materia_id AS materia_id, COUNT(DISTINCT v.nota_id) AS total
-              FROM nota_vinculo v
-              JOIN materia m ON m.id = v.materia_id
-             WHERE m.proyecto_id = ?
-             GROUP BY v.materia_id
-            """,
-            (proyecto_id,),
-        ).fetchall()
-        return {int(f["materia_id"]): int(f["total"]) for f in filas}
 
 
 def _a_nota(fila: sqlite3.Row) -> Nota:

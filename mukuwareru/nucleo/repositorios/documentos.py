@@ -61,14 +61,6 @@ class RepositorioDocumentos(Repositorio):
         ).fetchone()
         return _a_documento(fila) if fila else None
 
-    def por_ruta(self, proyecto_id: int, ruta_relativa: str) -> Documento | None:
-        """Busca por ruta relativa dentro de la biblioteca del proyecto."""
-        fila = self._cx.execute(
-            f"SELECT {_CAMPOS} FROM documento WHERE proyecto_id = ? AND ruta_relativa = ?",
-            (proyecto_id, ruta_relativa),
-        ).fetchone()
-        return _a_documento(fila) if fila else None
-
     # -- Escritura ---------------------------------------------------------
 
     def crear(

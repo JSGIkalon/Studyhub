@@ -6,7 +6,7 @@ directamente con pytest.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 _MESES = (
     "ene", "feb", "mar", "abr", "may", "jun",
@@ -63,6 +63,37 @@ def fecha_larga(dia: date) -> str:
     tanto como la fecha.
     """
     return f"{_DIAS_SEMANA[dia.weekday()]}, {fecha_corta(dia)}"
+
+
+def dias_relativos(dias: int) -> str:
+    """``3`` -> ``'en 3 dias'``, ``1`` -> ``'manana'``, ``0`` -> ``'hoy'``,
+    ``-1`` -> ``'ayer'``, ``-2`` -> ``'hace 2 dias'``."""
+    if dias > 1:
+        return f"en {dias} dias"
+    if dias == 1:
+        return "manana"
+    if dias == 0:
+        return "hoy"
+    if dias == -1:
+        return "ayer"
+    return f"hace {-dias} dias"
+
+
+def apertura(momento: datetime | None, *, hoy: date | None = None) -> str:
+    """Cuando se abrio algo por ultima vez: ``'hoy 10:30'``, ``'ayer'`` o la fecha.
+
+    En minusculas, para ir dentro de una linea; quien la ponga sola la
+    capitaliza. Antes el Panel y la Biblioteca tenian cada uno su copia, y una
+    decia «Hoy» y la otra «hoy».
+    """
+    if momento is None:
+        return "sin abrir"
+    dias = ((hoy or date.today()) - momento.date()).days
+    if dias == 0:
+        return f"hoy {momento:%H:%M}"
+    if dias == 1:
+        return "ayer"
+    return fecha_corta(momento.date())
 
 
 def porcentaje(parte: int, total: int) -> int:

@@ -24,6 +24,7 @@ from mukuwareru.nucleo.repositorios import (
     RepositorioModulos,
     RepositorioSesiones,
 )
+from mukuwareru.nucleo.repositorios.base import transaccion
 from mukuwareru.utilidades.registro import obtener
 
 _log = obtener(__name__)
@@ -147,12 +148,13 @@ class ServicioImportacion:
         materias_creadas = modulos_creados = modulos_actualizados = 0
         sesiones_creadas = sesiones_omitidas = 0
 
-        with self._cx:
+        with transaccion(self._cx):
             existentes = {m.nombre: m for m in self._materias.listar(proyecto_id)}
-            indice_modulos: dict[tuple[int, str], tuple[int, bool]] = {}
-            for previa in existentes.values():
-                for modulo in self._modulos.listar(previa.id):
-                    indice_modulos[(previa.id, modulo.nombre)] = (modulo.id, modulo.completado)
+            indice_modulos: dict[tuple[int, str], tuple[int, bool]] = {
+                (materia_id, modulo.nombre): (modulo.id, modulo.completado)
+                for materia_id, lista in self._modulos.listar_del_proyecto(proyecto_id).items()
+                for modulo in lista
+            }
 
             orden_materia = len(existentes)
             orden_modulo: dict[int, int] = {}

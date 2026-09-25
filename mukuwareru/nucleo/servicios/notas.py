@@ -92,10 +92,6 @@ class ServicioNotas:
             arbol.append(NodoArbol(cuaderno=cuaderno, secciones=secciones))
         return arbol
 
-    def seccion_por_defecto(self, proyecto_id: int) -> Seccion:
-        """Donde cae una nota que no elige destino."""
-        return self._cuadernos.asegurar_por_defecto(proyecto_id)
-
     # -- Notas --------------------------------------------------------------
 
     def crear_rapida(
@@ -220,7 +216,8 @@ class ServicioNotas:
         materia deja fuera los modulos de las demas.
         """
         materias = self._materias.listar(proyecto_id)
-        modulos = {m.id: self._modulos.listar(m.id) for m in materias}
+        agrupados = self._modulos.listar_del_proyecto(proyecto_id)
+        modulos = {m.id: agrupados.get(m.id, []) for m in materias}
         return materias, modulos, self._documentos.listar(proyecto_id)
 
     def vincular(

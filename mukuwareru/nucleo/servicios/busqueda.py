@@ -149,6 +149,7 @@ class ServicioBusqueda:
     def _temario_que_coincide(self, proyecto_id: int, aguja: str) -> list[Resultado]:
         materias: list[Resultado] = []
         modulos: list[Resultado] = []
+        por_materia = self._modulos.listar_del_proyecto(proyecto_id)
         for materia in self._materias.listar(proyecto_id):
             if aguja in materia.nombre.casefold() and len(materias) < _POR_FAMILIA:
                 materias.append(
@@ -161,7 +162,7 @@ class ServicioBusqueda:
                 )
             if len(modulos) >= _POR_FAMILIA:
                 continue
-            for modulo in self._modulos.listar(materia.id):
+            for modulo in por_materia.get(materia.id, []):
                 if aguja not in modulo.nombre.casefold():
                     continue
                 modulos.append(
@@ -209,19 +210,9 @@ class ServicioBusqueda:
                 familia=Familia.HITO,
                 titulo=hito.titulo,
                 subtitulo=f"{formato.fecha_corta(hito.fecha)}  ·  "
-                + _cuando(hito.dias_restantes(hoy)),
+                + formato.dias_relativos(hito.dias_restantes(hoy)),
                 objeto_id=hito.id,
             )
             for hito in encontrados
         ]
 
-
-def _cuando(dias: int) -> str:
-    """«en 88 dias», «hoy», «hace 3 dias»."""
-    if dias > 1:
-        return f"en {dias} dias"
-    if dias == 1:
-        return "manana"
-    if dias == 0:
-        return "hoy"
-    return f"hace {abs(dias)} dias"

@@ -256,8 +256,13 @@ class ServicioProgreso:
             )
             for c in conteos
         )
-        total, completados = self._modulos.conteo_total(proyecto_id)
-        return ResumenProgreso(total=total, completados=completados, materias=materias)
+        # El total es la suma de las materias: pedirlo aparte era otra consulta
+        # que decia lo mismo.
+        return ResumenProgreso(
+            total=sum(m.total for m in materias),
+            completados=sum(m.completados for m in materias),
+            materias=materias,
+        )
 
     def marcar(self, modulo_id: int, completado: bool) -> None:
         """Marca o desmarca un modulo."""

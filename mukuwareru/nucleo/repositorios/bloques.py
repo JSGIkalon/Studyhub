@@ -17,6 +17,7 @@ from mukuwareru.nucleo.repositorios.base import (
     a_fecha,
     a_fecha_hora,
     ahora_iso,
+    transaccion,
 )
 
 _CAMPOS = """
@@ -83,20 +84,21 @@ class RepositorioBloques(Repositorio):
         materias: Sequence[int] | None = None,
     ) -> BloquePlan:
         """Inserta un bloque planeado y lo devuelve ya con su id."""
-        cursor = self._cx.execute(
-            """
-            INSERT INTO bloque_plan
-                (proyecto_id, fecha, hora_inicio, duracion_min, titulo, nota, creado_en)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                proyecto_id, fecha.isoformat(), hora_inicio, duracion_min,
-                titulo, nota, ahora_iso(),
-            ),
-        )
-        bloque_id = int(cursor.lastrowid or 0)
-        if materias:
-            self.etiquetar(bloque_id, materias)
+        with transaccion(self._cx):
+            cursor = self._cx.execute(
+                """
+                INSERT INTO bloque_plan
+                    (proyecto_id, fecha, hora_inicio, duracion_min, titulo, nota, creado_en)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    proyecto_id, fecha.isoformat(), hora_inicio, duracion_min,
+                    titulo, nota, ahora_iso(),
+                ),
+            )
+            bloque_id = int(cursor.lastrowid or 0)
+            if materias:
+                self.etiquetar(bloque_id, materias)
         creado = self.obtener(bloque_id)
         assert creado is not None
         return creado
@@ -131,31 +133,31 @@ class RepositorioBloques(Repositorio):
 
     def etiquetar(self, bloque_id: int, materias: Sequence[int]) -> None:
         """Reemplaza las materias previstas. Calca ``sesiones.etiquetar``."""
-        self._cx.execute(
-            "DELETE FROM bloque_materia WHERE bloque_id = ?", (bloque_id,)
-        )
-        self._cx.executemany(
-            "INSERT INTO bloque_materia (bloque_id, materia_id) VALUES (?, ?)",
-            [(bloque_id, materia_id) for materia_id in materias],
-        )
+        with transaccion(self._cx):
+            self._cx.execute(
+                "DELETE FROM bloque_materia WHERE bloque_id = ?", (bloque_id,)
+            )
+            self._cx.executemany(
+                "INSERT INTO bloque_materia (bloque_id, materia_id) VALUES (?, ?)",
+                [(bloque_id, materia_id) for materia_id in materias],
+            )
 
     def eliminar(self, bloque_id: int) -> None:
         """Borra el bloque y sus materias previstas."""
         self._cx.execute("DELETE FROM bloque_plan WHERE id = ?", (bloque_id,))
 
-    def minutos_planeados_por_dia(
-        self, proyecto_id: int, desde: str, hasta: str
-    ) -> dict[str, int]:
-        """Minutos planeados por fecha local, para pintar la vista de mes."""
+    def fechas_sin_hora(self, proyecto_id: int, desde: str, hasta: str) -> set[str]:
+        """Fechas del rango que ya tienen un bloque de dia entero (sin hora).
+
+        La vista previa del plan pregunta esto para cada dia del rango; una
+        consulta por dia era una consulta por dia.
+        """
         filas = self._cx.execute(
-            """
-            SELECT fecha, SUM(duracion_min) AS total FROM bloque_plan
-             WHERE proyecto_id = ? AND fecha BETWEEN ? AND ?
-             GROUP BY fecha
-            """,
+            "SELECT DISTINCT fecha FROM bloque_plan "
+            " WHERE proyecto_id = ? AND fecha BETWEEN ? AND ? AND hora_inicio IS NULL",
             (proyecto_id, desde, hasta),
         ).fetchall()
-        return {f["fecha"]: int(f["total"]) for f in filas}
+        return {f["fecha"] for f in filas}
 
     def existe_en(
         self, proyecto_id: int, fecha: date, hora_inicio: str | None

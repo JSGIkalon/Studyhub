@@ -59,14 +59,13 @@ class ServicioEstadisticas:
         dia = hoy or date.today()
         lunes = dia - timedelta(days=dia.weekday())
 
+        hoy_seg, semana_seg, total_seg = self._sesiones.segundos_hoy_semana_total(
+            proyecto_id, dia.isoformat(), lunes.isoformat()
+        )
         return ResumenEstudio(
-            segundos_hoy=self._sesiones.segundos_trabajo(
-                proyecto_id, desde=dia.isoformat(), hasta=dia.isoformat()
-            ),
-            segundos_semana=self._sesiones.segundos_trabajo(
-                proyecto_id, desde=lunes.isoformat(), hasta=dia.isoformat()
-            ),
-            segundos_total=self._sesiones.segundos_trabajo(proyecto_id),
+            segundos_hoy=hoy_seg,
+            segundos_semana=semana_seg,
+            segundos_total=total_seg,
             pomodoros_hoy=self._sesiones.contar_pomodoros(proyecto_id, fecha=dia.isoformat()),
             racha=calcular_racha(self._sesiones.dias_con_trabajo(proyecto_id), dia),
         )

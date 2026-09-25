@@ -5,8 +5,6 @@ from __future__ import annotations
 import sqlite3
 from datetime import date, datetime, time, timedelta
 
-import pytest
-
 from mukuwareru.nucleo.modelos import (
     OrigenSesion,
     Proyecto,
@@ -33,11 +31,6 @@ from mukuwareru.nucleo.servicios import (
 )
 
 HOY = date(2026, 8, 17)  # un lunes
-
-
-@pytest.fixture
-def proyecto(conn: sqlite3.Connection) -> Proyecto:
-    return RepositorioProyectos(conn).crear("CFA")
 
 
 def _poblar(conn: sqlite3.Connection, proyecto: Proyecto) -> None:
@@ -387,3 +380,63 @@ def test_una_sesion_reciente_alimenta_el_ritmo_real(
 
     diagnostico = ServicioPlan(conn).diagnostico(proyecto.id, HOY)
     assert diagnostico.horas_por_semana_reales == 2.0  # 8 h repartidas en 4 semanas
+
+
+def _nota_tocada_hace(
+    conn: sqlite3.Connection, seccion_id: int, titulo: str, dias: int
+) -> None:
+    nota = RepositorioNotas(conn).crear(seccion_id, titulo=titulo, cuerpo="x")
+    marca = (
+        datetime.combine(HOY - timedelta(days=dias), time(10, 0))
+        .astimezone()
+        .isoformat(timespec="seconds")
+    )
+    conn.execute("UPDATE nota SET actualizado_en = ? WHERE id = ?", (marca, nota.id))
+
+
+def test_las_notas_olvidadas_salen_de_la_mas_antigua_a_la_mas_nueva(
+    conn: sqlite3.Connection, proyecto: Proyecto
+) -> None:
+    """Antes se quedaba con las olvidadas MAS RECIENTES: el orden de la lista."""
+    seccion = RepositorioCuadernos(conn).asegurar_por_defecto(proyecto.id)
+    for titulo, dias in [("Reciente", 5), ("Justo", 30), ("Vieja", 90), ("Media", 45)]:
+        _nota_tocada_hace(conn, seccion.id, titulo, dias)
+
+    sugerencias = ServicioPlan(conn).sugerencias(proyecto.id, HOY, limite=2)
+    assert [s.titulo for s in sugerencias] == ["Vieja", "Media"]
+
+    todas = ServicioPlan(conn).sugerencias(proyecto.id, HOY)
+    # El dia 30 cuenta como olvidada; la de hace 5 dias no.
+    assert [s.titulo for s in todas] == ["Vieja", "Media", "Justo"]
+
+
+def test_las_listas_de_notas_no_cargan_el_cuerpo(
+    conn: sqlite3.Connection, proyecto: Proyecto
+) -> None:
+    """El cuerpo puede llevar imagenes en base64; solo `obtener` lo trae."""
+    seccion = RepositorioCuadernos(conn).asegurar_por_defecto(proyecto.id)
+    notas = RepositorioNotas(conn)
+    creada = notas.crear(seccion.id, titulo="Con imagen", cuerpo="<img src='data:...'>texto")
+
+    listada = notas.listar_del_proyecto(proyecto.id)[0]
+    assert listada.nota.cuerpo == ""
+    assert "texto" in listada.nota.cuerpo_plano
+    assert "img" in notas.obtener(creada.id).cuerpo
+
+
+def test_los_modulos_del_proyecto_se_agrupan_en_una_consulta(
+    conn: sqlite3.Connection, proyecto: Proyecto
+) -> None:
+    materias = RepositorioMaterias(conn)
+    modulos = RepositorioModulos(conn)
+    ethics = materias.crear(proyecto.id, "Ethics")
+    quant = materias.crear(proyecto.id, "Quant")
+    materias.crear(proyecto.id, "Vacia")
+    modulos.crear(ethics.id, "B", orden=1)
+    modulos.crear(ethics.id, "A", orden=0)
+    modulos.crear(quant.id, "Q")
+
+    agrupados = modulos.listar_del_proyecto(proyecto.id)
+    assert [m.nombre for m in agrupados[ethics.id]] == ["A", "B"]
+    assert [m.nombre for m in agrupados[quant.id]] == ["Q"]
+    assert len(agrupados) == 2

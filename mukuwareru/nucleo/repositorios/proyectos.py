@@ -7,7 +7,13 @@ from collections.abc import Sequence
 from datetime import date
 
 from mukuwareru.nucleo.modelos.entidades import Proyecto
-from mukuwareru.nucleo.repositorios.base import Repositorio, a_fecha, a_fecha_hora, ahora_iso
+from mukuwareru.nucleo.repositorios.base import (
+    Repositorio,
+    a_fecha,
+    a_fecha_hora,
+    ahora_iso,
+    transaccion,
+)
 
 _CAMPOS = """
     id, nombre, icono, color, fecha_objetivo, ruta_biblioteca,
@@ -107,7 +113,7 @@ class RepositorioProyectos(Repositorio):
         resultado no depende de como estuviera la columna antes, que en bases
         antiguas puede tener empates.
         """
-        with self._cx:
+        with transaccion(self._cx):
             self._cx.executemany(
                 "UPDATE proyecto SET orden = ? WHERE id = ?",
                 [(posicion, proyecto_id) for posicion, proyecto_id in enumerate(ids)],

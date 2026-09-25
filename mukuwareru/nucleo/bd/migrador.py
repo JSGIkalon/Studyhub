@@ -76,11 +76,18 @@ def migrar(conexion: sqlite3.Connection, ruta_bd: Path | None = None) -> int:
         # terminar: evita que un ALTER intermedio dispare comprobaciones.
         conexion.execute("PRAGMA foreign_keys = OFF")
         try:
-            with conexion:
-                conexion.executescript(migracion.sql)
-                conexion.execute(
-                    "INSERT INTO esquema_version (version) VALUES (?)", (migracion.version,)
-                )
+            # La conexion va en autocommit y ``executescript`` confirma lo
+            # pendiente antes de empezar, asi que el BEGIN/COMMIT va dentro
+            # del propio script: o se aplica entera o no se aplica nada.
+            conexion.executescript(
+                f"BEGIN;\n{migracion.sql}\n;"
+                f"INSERT INTO esquema_version (version) VALUES ({migracion.version});\n"
+                "COMMIT;"
+            )
+        except BaseException:
+            if conexion.in_transaction:
+                conexion.execute("ROLLBACK")
+            raise
         finally:
             conexion.execute("PRAGMA foreign_keys = ON")
         version = migracion.version

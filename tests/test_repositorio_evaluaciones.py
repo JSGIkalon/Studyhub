@@ -85,7 +85,6 @@ def test_las_evaluaciones_no_saltan_de_proyecto(
     repo.crear(proyecto_id, "Del CFA", DIA, 10, 20)
 
     assert repo.listar(ajeno.id) == []
-    assert repo.conteo(ajeno.id) == 0
 
 
 def test_decimales_no_enteros(repo: RepositorioEvaluaciones, proyecto_id: int) -> None:
@@ -194,16 +193,6 @@ def test_borrar_el_hito_deja_la_evaluacion_con_hito_nulo(
     assert leida.porcentaje == 76
 
 
-def test_por_hito_encuentra_el_resultado(
-    conn: sqlite3.Connection, repo: RepositorioEvaluaciones, proyecto_id: int
-) -> None:
-    hito = RepositorioHitos(conn).crear(proyecto_id, "Mock 2", DIA)
-    repo.crear(proyecto_id, "Mock 2", DIA, 38, 50, hito_id=hito.id)
-
-    encontrada = repo.por_hito(hito.id)
-    assert encontrada is not None and encontrada.titulo == "Mock 2"
-
-
 def test_no_caben_dos_evaluaciones_en_el_mismo_hito(
     conn: sqlite3.Connection, repo: RepositorioEvaluaciones, proyecto_id: int
 ) -> None:
@@ -220,7 +209,7 @@ def test_varias_evaluaciones_sin_hito_conviven(
     """El indice unico es parcial: `hito_id` nulo es el caso corriente."""
     repo.crear(proyecto_id, "Uno", DIA, 10, 20)
     repo.crear(proyecto_id, "Dos", DIA, 12, 20)
-    assert repo.conteo(proyecto_id) == 2
+    assert len(repo.listar(proyecto_id)) == 2
 
 
 # --- Restricciones ---------------------------------------------------------

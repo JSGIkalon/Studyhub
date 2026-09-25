@@ -20,14 +20,8 @@ from mukuwareru.nucleo.repositorios import (
     RepositorioMaterias,
     RepositorioModulos,
     RepositorioNotas,
-    RepositorioProyectos,
 )
 from mukuwareru.nucleo.servicios import ServicioNotas
-
-
-@pytest.fixture
-def proyecto(conn: sqlite3.Connection) -> Proyecto:
-    return RepositorioProyectos(conn).crear("CFA")
 
 
 @pytest.fixture
@@ -439,7 +433,7 @@ def test_una_nota_con_dos_vinculos_al_mismo_pdf_no_sale_duplicada(
     assert len(notas.por_documento(documento, pagina=4)) == 1
 
 
-def test_busqueda_inversa_por_materia_y_modulo(
+def test_busqueda_inversa_por_modulo(
     conn: sqlite3.Connection, proyecto: Proyecto, seccion_id: int
 ) -> None:
     notas = RepositorioNotas(conn)
@@ -449,9 +443,7 @@ def test_busqueda_inversa_por_materia_y_modulo(
     notas.vincular_materia(nota.id, materia.id)
     notas.vincular_modulo(nota.id, modulo.id)
 
-    assert len(notas.por_materia(materia.id)) == 1
     assert len(notas.por_modulo(modulo.id)) == 1
-    assert notas.conteo_por_materia(proyecto.id) == {materia.id: 1}
 
 
 def test_conteo_por_documento(

@@ -24,9 +24,6 @@ TABLAS_ESPERADAS = {
     "etiqueta",
     "nota_etiqueta",
     "nota_vinculo",
-    # 007 · grafo de dependencias
-    "grafo_nodo",
-    "grafo_arista",
 }
 
 
@@ -121,3 +118,55 @@ def test_una_base_nueva_queda_en_la_ultima_version() -> None:
         assert version_actual(cx) == max(m.version for m in migraciones_disponibles())
     finally:
         cx.close()
+
+
+def test_una_migracion_que_falla_no_deja_nada_a_medias(monkeypatch) -> None:
+    """Si una migracion revienta a mitad, su primera mitad tampoco se queda."""
+    from mukuwareru.nucleo.bd import migrador
+    from mukuwareru.nucleo.bd.migrador import Migracion
+
+    rota = Migracion(
+        version=999,
+        nombre="999_rota.sql",
+        sql="CREATE TABLE a_medias (x INTEGER);\nINSERT INTO tabla_que_no_existe VALUES (1);",
+    )
+    cx = bd.abrir(":memory:")
+    try:
+        antes = version_actual(cx)
+        monkeypatch.setattr(
+            migrador, "migraciones_disponibles",
+            lambda: [*migraciones_disponibles(), rota],
+        )
+        try:
+            migrar(cx)
+        except sqlite3.OperationalError:
+            pass
+        else:
+            raise AssertionError("la migracion rota deberia haber fallado")
+
+        assert version_actual(cx) == antes
+        assert cx.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE name = 'a_medias'"
+        ).fetchone()[0] == 0
+        assert not cx.in_transaction
+    finally:
+        cx.close()
+
+
+def test_transaccion_deshace_todo_si_algo_falla(conn: sqlite3.Connection) -> None:
+    from mukuwareru.nucleo.repositorios.base import transaccion
+
+    try:
+        with transaccion(conn):
+            conn.execute(
+                "INSERT INTO proyecto (nombre, creado_en) VALUES ('A', '2026-01-01T00:00:00')"
+            )
+            with transaccion(conn):  # anidada, como servicio -> repositorio
+                conn.execute(
+                    "INSERT INTO proyecto (nombre, creado_en) VALUES ('B', '2026-01-01T00:00:00')"
+                )
+            raise RuntimeError("fallo a mitad")
+    except RuntimeError:
+        pass
+    assert conn.execute("SELECT COUNT(*) FROM proyecto").fetchone()[0] == 0
+    assert not conn.in_transaction

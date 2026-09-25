@@ -16,6 +16,7 @@ from pathlib import Path
 
 from mukuwareru.nucleo.modelos.entidades import Documento, Proyecto
 from mukuwareru.nucleo.repositorios import RepositorioDocumentos
+from mukuwareru.nucleo.repositorios.base import transaccion
 from mukuwareru.utilidades import huella as huellas
 from mukuwareru.utilidades import rutas
 from mukuwareru.utilidades.registro import obtener
@@ -74,7 +75,7 @@ class ServicioBiblioteca:
         vistos: set[str] = set()
         nuevos = movidos = modificados = 0
 
-        with self._cx:
+        with transaccion(self._cx):
             for archivo in en_disco:
                 relativa = archivo.relative_to(carpeta).as_posix()
                 vistos.add(relativa)
@@ -136,7 +137,3 @@ class ServicioBiblioteca:
         )
         registrados[relativa] = creado
         return "nuevo"
-
-    def ruta_absoluta(self, proyecto: Proyecto, documento: Documento) -> Path:
-        """Ruta real en disco de un documento registrado."""
-        return ruta_biblioteca(proyecto) / documento.ruta_relativa

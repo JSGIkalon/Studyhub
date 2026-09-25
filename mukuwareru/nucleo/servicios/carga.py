@@ -26,6 +26,7 @@ lo de siempre.
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 
@@ -156,20 +157,30 @@ class ServicioCarga:
             )
         return cargas
 
-    def horas_restantes(self, proyecto_id: int) -> float | None:
+    def horas_restantes(
+        self, proyecto_id: int, cargas: Sequence[CargaMateria] | None = None
+    ) -> float | None:
         """Horas declaradas que quedan en todo el proyecto.
 
         ``None`` si ninguna materia tiene estimacion: entonces no hay dato y
         quien pregunte debe seguir extrapolando del historial, como siempre.
+
+        ``cargas`` permite reutilizar un ``resumen`` ya calculado: el Panel lo
+        necesita para tres cosas y cada una lo recalculaba.
         """
-        cargas = self.resumen(proyecto_id)
+        if cargas is None:
+            cargas = self.resumen(proyecto_id)
         estimadas = [c for c in cargas if c.estimada or c.sobrescrita]
         if not estimadas:
             return None
         return sum(c.horas_restantes for c in estimadas)
 
     def urgentes(
-        self, proyecto_id: int, hoy: date | None = None, limite: int = 5
+        self,
+        proyecto_id: int,
+        hoy: date | None = None,
+        limite: int = 5,
+        cargas: Sequence[CargaMateria] | None = None,
     ) -> list[CargaMateria]:
         """Materias con horas pendientes, de la mas urgente a la menos.
 
@@ -179,7 +190,7 @@ class ServicioCarga:
         dia = hoy or date.today()
         pendientes = [
             c
-            for c in self.resumen(proyecto_id)
+            for c in (cargas if cargas is not None else self.resumen(proyecto_id))
             if c.horas_restantes > 0 or c.completados < c.total_modulos
         ]
         pendientes.sort(key=lambda c: c.urgencia(dia))

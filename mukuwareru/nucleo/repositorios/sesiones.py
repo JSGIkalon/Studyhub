@@ -10,7 +10,7 @@ import sqlite3
 from datetime import datetime
 
 from mukuwareru.nucleo.modelos.entidades import OrigenSesion, Sesion, TipoSesion
-from mukuwareru.nucleo.repositorios.base import Repositorio, a_fecha_hora
+from mukuwareru.nucleo.repositorios.base import Repositorio, a_fecha_hora, transaccion
 
 _CAMPOS = """
     id, proyecto_id, tipo, origen, inicio, fin,
@@ -42,27 +42,28 @@ class RepositorioSesiones(Repositorio):
         materias: list[int] | None = None,
     ) -> Sesion:
         """Registra una sesion y la asocia opcionalmente a varias materias."""
-        cursor = self._cx.execute(
-            """
-            INSERT INTO sesion
-                (proyecto_id, tipo, origen, inicio, fin, duracion_seg, fecha_local, completada)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                proyecto_id,
-                str(tipo),
-                str(origen),
-                inicio.isoformat(timespec="seconds"),
-                fin.isoformat(timespec="seconds") if fin else None,
-                duracion_seg,
-                inicio.date().isoformat(),
-                int(completada),
-            ),
-        )
-        sesion_id = int(cursor.lastrowid or 0)
         etiquetas = materias or []
-        if etiquetas:
-            self.etiquetar(sesion_id, etiquetas)
+        with transaccion(self._cx):
+            cursor = self._cx.execute(
+                """
+                INSERT INTO sesion
+                    (proyecto_id, tipo, origen, inicio, fin, duracion_seg, fecha_local, completada)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    proyecto_id,
+                    str(tipo),
+                    str(origen),
+                    inicio.isoformat(timespec="seconds"),
+                    fin.isoformat(timespec="seconds") if fin else None,
+                    duracion_seg,
+                    inicio.date().isoformat(),
+                    int(completada),
+                ),
+            )
+            sesion_id = int(cursor.lastrowid or 0)
+            if etiquetas:
+                self.etiquetar(sesion_id, etiquetas)
 
         return Sesion(
             id=sesion_id,
@@ -79,11 +80,12 @@ class RepositorioSesiones(Repositorio):
 
     def etiquetar(self, sesion_id: int, materias: list[int]) -> None:
         """Reemplaza las materias asociadas a una sesion."""
-        self._cx.execute("DELETE FROM sesion_materia WHERE sesion_id = ?", (sesion_id,))
-        self._cx.executemany(
-            "INSERT INTO sesion_materia (sesion_id, materia_id) VALUES (?, ?)",
-            [(sesion_id, m) for m in materias],
-        )
+        with transaccion(self._cx):
+            self._cx.execute("DELETE FROM sesion_materia WHERE sesion_id = ?", (sesion_id,))
+            self._cx.executemany(
+                "INSERT INTO sesion_materia (sesion_id, materia_id) VALUES (?, ?)",
+                [(sesion_id, m) for m in materias],
+            )
 
     def eliminar(self, sesion_id: int) -> None:
         """Borra una sesion."""
@@ -171,6 +173,53 @@ class RepositorioSesiones(Repositorio):
         ).fetchone()
         return int(fila[0])
 
+    def segundos_hoy_semana_total(
+        self, proyecto_id: int, hoy: str, lunes: str
+    ) -> tuple[int, int, int]:
+        """Los tres acumulados del Panel en una sola pasada sobre ``sesion``."""
+        fila = self._cx.execute(
+            """
+            SELECT COALESCE(SUM(CASE WHEN fecha_local = ? THEN duracion_seg END), 0),
+                   COALESCE(SUM(CASE WHEN fecha_local BETWEEN ? AND ?
+                                     THEN duracion_seg END), 0),
+                   COALESCE(SUM(duracion_seg), 0)
+              FROM sesion
+             WHERE proyecto_id = ? AND tipo = 'trabajo'
+            """,
+            (hoy, lunes, hoy, proyecto_id),
+        ).fetchone()
+        return int(fila[0]), int(fila[1]), int(fila[2])
+
+    def segundos_por_periodo(
+        self, proyecto_id: int, desde: str, hasta: str, formato: str
+    ) -> dict[str, int]:
+        """Segundos de trabajo agrupados con ``strftime(formato, fecha_local)``.
+
+        ``'%Y-%m'`` da meses; para semanas la vista agrupa ``segundos_por_dia``,
+        porque la semana ISO que empieza en lunes no tiene formato en SQLite.
+        """
+        filas = self._cx.execute(
+            """
+            SELECT strftime(?, fecha_local) AS periodo, SUM(duracion_seg) AS total
+              FROM sesion
+             WHERE proyecto_id = ? AND tipo = 'trabajo'
+               AND fecha_local BETWEEN ? AND ?
+             GROUP BY periodo
+            """,
+            (formato, proyecto_id, desde, hasta),
+        ).fetchall()
+        return {f["periodo"]: int(f["total"]) for f in filas}
+
+    def segundos_por_proyecto(self) -> dict[int, int]:
+        """Segundos de trabajo de cada proyecto, en una consulta."""
+        filas = self._cx.execute(
+            """
+            SELECT proyecto_id, SUM(duracion_seg) AS total FROM sesion
+             WHERE tipo = 'trabajo' GROUP BY proyecto_id
+            """
+        ).fetchall()
+        return {int(f["proyecto_id"]): int(f["total"]) for f in filas}
+
     def contar_pomodoros(self, proyecto_id: int, *, fecha: str | None = None) -> int:
         """Sesiones de trabajo completadas, opcionalmente de un solo dia."""
         condiciones = ["proyecto_id = ?", "tipo = 'trabajo'", "completada = 1"]
@@ -240,13 +289,16 @@ class RepositorioSesiones(Repositorio):
               FROM sesion s
               JOIN sesion_materia sm ON sm.sesion_id = s.id
               JOIN (
-                    SELECT sesion_id, COUNT(*) AS cuantas
-                      FROM sesion_materia GROUP BY sesion_id
+                    SELECT sm2.sesion_id, COUNT(*) AS cuantas
+                      FROM sesion_materia sm2
+                      JOIN sesion s2 ON s2.id = sm2.sesion_id
+                     WHERE s2.proyecto_id = ?
+                     GROUP BY sm2.sesion_id
                    ) etiquetas ON etiquetas.sesion_id = s.id
              WHERE s.proyecto_id = ? AND s.tipo = 'trabajo'
              GROUP BY sm.materia_id
             """,
-            (proyecto_id,),
+            (proyecto_id, proyecto_id),
         ).fetchall()
         return {f["materia_id"]: round(f["total"]) for f in filas}
 

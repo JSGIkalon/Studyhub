@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from mukuwareru.nucleo.modelos.entidades import Modulo
-from mukuwareru.nucleo.repositorios.base import Repositorio, a_fecha_hora, ahora_iso
+from mukuwareru.nucleo.repositorios.base import Repositorio, a_fecha_hora, ahora_iso, transaccion
 
 _CAMPOS = (
     "id, materia_id, nombre, orden, completado, completado_en, horas_estimadas"
@@ -166,7 +166,7 @@ class RepositorioModulos(Repositorio):
         if self._existe_nombre(materia_id, actual.nombre):
             return False
 
-        with self._cx:
+        with transaccion(self._cx):
             self._cx.execute(
                 "UPDATE modulo SET materia_id = ?, orden = ? WHERE id = ?",
                 (materia_id, len(self.listar(materia_id)), modulo_id),
@@ -243,6 +243,52 @@ class RepositorioModulos(Repositorio):
         self.reordenar(referencia.materia_id, posiciones)
         nuevo.orden = posiciones.index(nuevo.id)
         return nuevo
+
+    def completados_hasta(
+        self, proyecto_id: int, fecha: str, limite: int
+    ) -> list[tuple[Modulo, str]]:
+        """Modulos completados en ``fecha`` (ISO) o antes, con el nombre de su materia.
+
+        Del mas antiguo al mas reciente y, dentro del mismo dia, por nombre. Es
+        la consulta del repaso activo: una sola, en lugar de listar los modulos
+        materia por materia y filtrar en Python.
+        """
+        filas = self._cx.execute(
+            f"""
+            SELECT {", ".join("mo." + c.strip() for c in _CAMPOS.split(","))},
+                   m.nombre AS materia
+              FROM modulo mo
+              JOIN materia m ON m.id = mo.materia_id
+             WHERE m.proyecto_id = ? AND mo.completado = 1
+               AND mo.completado_en IS NOT NULL
+               AND substr(mo.completado_en, 1, 10) <= ?
+             ORDER BY substr(mo.completado_en, 1, 10), mo.nombre
+             LIMIT ?
+            """,
+            (proyecto_id, fecha, limite),
+        ).fetchall()
+        return [(_a_modulo(f), f["materia"]) for f in filas]
+
+    def listar_del_proyecto(self, proyecto_id: int) -> dict[int, list[Modulo]]:
+        """Todos los modulos del proyecto agrupados por materia, en una consulta.
+
+        Las materias sin modulos no aparecen; quien recorra las materias debe
+        usar ``.get(materia.id, [])``.
+        """
+        filas = self._cx.execute(
+            f"""
+            SELECT {", ".join("mo." + c.strip() for c in _CAMPOS.split(","))}
+              FROM modulo mo
+              JOIN materia m ON m.id = mo.materia_id
+             WHERE m.proyecto_id = ?
+             ORDER BY mo.materia_id, mo.orden, mo.nombre
+            """,
+            (proyecto_id,),
+        ).fetchall()
+        agrupados: dict[int, list[Modulo]] = {}
+        for fila in filas:
+            agrupados.setdefault(int(fila["materia_id"]), []).append(_a_modulo(fila))
+        return agrupados
 
     # -- Recuentos ---------------------------------------------------------
 

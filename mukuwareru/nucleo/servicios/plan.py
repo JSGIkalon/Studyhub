@@ -18,6 +18,7 @@ Dos piezas:
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
@@ -30,7 +31,9 @@ from mukuwareru.nucleo.repositorios import (
     RepositorioNotas,
     RepositorioSesiones,
 )
-from mukuwareru.nucleo.servicios.carga import ServicioCarga
+from mukuwareru.nucleo.repositorios.base import transaccion
+from mukuwareru.nucleo.servicios.carga import CargaMateria, ServicioCarga
+from mukuwareru.utilidades import formato
 
 _MINUTOS_POR_DIA = "plan.minutos_por_dia"
 _ACTIVO = "plan.activo"
@@ -140,6 +143,7 @@ class ServicioPlan:
     """Ritmo necesario, generacion de bloques y sugerencias de repaso."""
 
     def __init__(self, conexion: sqlite3.Connection) -> None:
+        self._cx = conexion
         self._ajustes = RepositorioAjustes(conexion)
         self._modulos = RepositorioModulos(conexion)
         self._materias = RepositorioMaterias(conexion)
@@ -172,20 +176,33 @@ class ServicioPlan:
     def guardar(self, proyecto_id: int, plan: PlanSemanal) -> None:
         """Persiste el plan, recortado a valores con sentido."""
         recortados = [max(0, min(_MAXIMO_DIARIO, m)) for m in plan.minutos]
-        self._ajustes.establecer(
-            _MINUTOS_POR_DIA, ",".join(str(m) for m in recortados), proyecto_id
-        )
-        self._ajustes.establecer(_ACTIVO, "1" if plan.activo else "0", proyecto_id)
+        with transaccion(self._cx):
+            self._ajustes.establecer(
+                _MINUTOS_POR_DIA, ",".join(str(m) for m in recortados), proyecto_id
+            )
+            self._ajustes.establecer(_ACTIVO, "1" if plan.activo else "0", proyecto_id)
 
     # -- Diagnostico ---------------------------------------------------------
 
-    def diagnostico(self, proyecto_id: int, hoy: date | None = None) -> Diagnostico:
-        """Ritmo necesario para llegar al proximo hito, frente al real."""
+    def diagnostico(
+        self,
+        proyecto_id: int,
+        hoy: date | None = None,
+        *,
+        conteo: tuple[int, int] | None = None,
+        cargas: Sequence[CargaMateria] | None = None,
+    ) -> Diagnostico:
+        """Ritmo necesario para llegar al proximo hito, frente al real.
+
+        ``conteo`` (``total, completados``) y ``cargas`` son opcionales y sirven
+        para reutilizar lo que quien llama ya tiene calculado —el Panel lo
+        tiene—, en vez de volver a pedirlo a la base.
+        """
         dia = hoy or date.today()
-        total, completados = self._modulos.conteo_total(proyecto_id)
+        total, completados = conteo or self._modulos.conteo_total(proyecto_id)
         pendientes = total - completados
 
-        declaradas = self._carga.horas_restantes(proyecto_id)
+        declaradas = self._carga.horas_restantes(proyecto_id, cargas)
 
         proximos = self._hitos.proximos(proyecto_id, dia.isoformat(), limite=1)
         if not proximos:
@@ -260,12 +277,15 @@ class ServicioPlan:
         plan = self.cargar(proyecto_id)
         bloques: list[tuple[date, int]] = []
         omitidos = 0
+        ocupadas = self._bloques.fechas_sin_hora(
+            proyecto_id, desde.isoformat(), hasta.isoformat()
+        )
 
         actual = desde
         while actual <= hasta:
             minutos = plan.para(actual)
             if minutos > 0:
-                if self._bloques.existe_en(proyecto_id, actual, None):
+                if actual.isoformat() in ocupadas:
                     omitidos += 1
                 else:
                     bloques.append((actual, minutos))
@@ -276,66 +296,65 @@ class ServicioPlan:
         """Crea los bloques previstos y devuelve cuantos escribio.
 
         Recibe la prevision ya calculada para que lo que se guarda sea
-        exactamente lo que se enseno.
+        exactamente lo que se enseno. Todo o nada: un fallo a mitad no deja
+        media semana planificada.
         """
-        for fecha, minutos in prevision.bloques:
-            self._bloques.crear(
-                proyecto_id,
-                fecha,
-                duracion_min=minutos,
-                hora_inicio=None,
-                titulo="Estudio planificado",
-            )
+        with transaccion(self._cx):
+            for fecha, minutos in prevision.bloques:
+                self._bloques.crear(
+                    proyecto_id,
+                    fecha,
+                    duracion_min=minutos,
+                    hora_inicio=None,
+                    titulo="Estudio planificado",
+                )
         return len(prevision.bloques)
 
     # -- Repaso activo -------------------------------------------------------
 
     def sugerencias(
-        self, proyecto_id: int, hoy: date | None = None, limite: int = 5
+        self,
+        proyecto_id: int,
+        hoy: date | None = None,
+        limite: int = 5,
+        *,
+        cargas: Sequence[CargaMateria] | None = None,
     ) -> list[Sugerencia]:
         """Que conviene repasar hoy, calculado sobre lo que ya hay.
 
         No es repeticion espaciada: no hay cola, ni intervalos, ni estado. Son
         dos preguntas sobre los datos existentes, de modo que ignorarlas durante
-        un mes no deja nada roto.
+        un mes no deja nada roto. ``cargas`` reutiliza un resumen de carga ya
+        calculado, como en ``diagnostico``.
         """
         dia = hoy or date.today()
 
         # 1. Modulos completados hace tiempo. Lo aprendido hace tres semanas es
         #    justo lo que esta a punto de olvidarse.
         limite_repaso = dia - timedelta(days=_DIAS_PARA_REPASAR)
-        # Se guarda la antiguedad junto a cada sugerencia para poder ordenar por
-        # ella. Ordenar por el texto del motivo —como se hacia— compara cadenas:
-        # «hace 25 dias» va antes que «hace 9 dias» porque '2' < '9', y el corte
-        # a `limite` se quedaba con las equivocadas.
-        candidatas: list[tuple[int, Sugerencia]] = []
-        for materia in self._materias.listar(proyecto_id):
-            for modulo in self._modulos.listar(materia.id):
-                if not modulo.completado or modulo.completado_en is None:
-                    continue
-                if modulo.completado_en.date() > limite_repaso:
-                    continue
-                dias = (dia - modulo.completado_en.date()).days
-                candidatas.append((
-                    dias,
-                    Sugerencia(
-                        titulo=modulo.nombre,
-                        motivo=f"Completado hace {dias} dias · {materia.nombre}",
-                        materia_id=materia.id,
-                        modulo_id=modulo.id,
-                    ),
-                ))
-
         # Lo mas antiguo primero: es lo que peor se recuerda. El desempate por
-        # titulo mantiene el orden estable entre dos modulos del mismo dia.
-        candidatas.sort(key=lambda par: (-par[0], par[1].titulo))
-        sugerencias = [sugerencia for _, sugerencia in candidatas[:limite]]
+        # nombre mantiene el orden estable entre dos modulos del mismo dia. La
+        # consulta ya filtra, ordena y corta, asi que no se lee nada de mas.
+        sugerencias: list[Sugerencia] = []
+        for modulo, materia in self._modulos.completados_hasta(
+            proyecto_id, limite_repaso.isoformat(), limite
+        ):
+            assert modulo.completado_en is not None
+            dias = (dia - modulo.completado_en.date()).days
+            sugerencias.append(
+                Sugerencia(
+                    titulo=modulo.nombre,
+                    motivo=f"Completado hace {dias} dias · {materia}",
+                    materia_id=modulo.materia_id,
+                    modulo_id=modulo.id,
+                )
+            )
 
         # 2. Materias con fecha limite encima. Va antes que las notas olvidadas
         #    porque una fecha que se acerca es mas urgente que un repaso.
         if len(sugerencias) < limite:
             sugerencias += self._limites_cercanos(
-                proyecto_id, dia, limite - len(sugerencias)
+                proyecto_id, dia, limite - len(sugerencias), cargas
             )
 
         # 3. Material escrito que no se ha vuelto a abrir. Una nota que nadie
@@ -347,7 +366,11 @@ class ServicioPlan:
         return sugerencias
 
     def _limites_cercanos(
-        self, proyecto_id: int, hoy: date, limite: int
+        self,
+        proyecto_id: int,
+        hoy: date,
+        limite: int,
+        cargas: Sequence[CargaMateria] | None = None,
     ) -> list[Sugerencia]:
         """Materias con fecha limite dentro del horizonte y horas por delante.
 
@@ -356,16 +379,12 @@ class ServicioPlan:
         siempre. Sigue sin haber cola ni estado que mantener.
         """
         cercanas: list[Sugerencia] = []
-        for carga in self._carga.urgentes(proyecto_id, hoy, limite=limite):
+        for carga in self._carga.urgentes(proyecto_id, hoy, limite=limite, cargas=cargas):
             dias = carga.dias_para_limite(hoy)
             if dias is None or dias > _DIAS_DE_HORIZONTE:
                 continue
-            if dias < 0:
-                cuando = f"Fecha limite pasada hace {-dias} dias"
-            elif dias == 0:
-                cuando = "Fecha limite hoy"
-            else:
-                cuando = f"Fecha limite en {dias} dias"
+            relativo = formato.dias_relativos(dias)
+            cuando = f"Fecha limite {'pasada ' if dias < 0 else ''}{relativo}"
             horas = carga.horas_restantes
             resto = f" · quedan {horas:.0f} h" if horas > 0 else ""
             cercanas.append(
@@ -380,13 +399,14 @@ class ServicioPlan:
     def _notas_olvidadas(
         self, proyecto_id: int, hoy: date, limite: int
     ) -> list[Sugerencia]:
-        """Notas sin tocar desde hace mas de un mes."""
-        corte = hoy - timedelta(days=_DIAS_SIN_TOCAR)
+        """Notas sin tocar desde hace mas de un mes, la mas olvidada primero."""
+        # `actualizado_en` es ISO con hora: comparar con el dia siguiente al
+        # corte incluye todo el dia del corte, igual que `date() <= corte`.
+        antes_de = (hoy - timedelta(days=_DIAS_SIN_TOCAR - 1)).isoformat()
         olvidadas: list[Sugerencia] = []
-        for listada in self._notas.listar_del_proyecto(proyecto_id):
+        for listada in self._notas.olvidadas(proyecto_id, antes_de, limite):
             actualizada = listada.nota.actualizado_en
-            if actualizada is None or actualizada.date() > corte:
-                continue
+            assert actualizada is not None
             dias = (hoy - actualizada.date()).days
             olvidadas.append(
                 Sugerencia(
@@ -394,6 +414,4 @@ class ServicioPlan:
                     motivo=f"Sin releer desde hace {dias} dias · {listada.seccion}",
                 )
             )
-            if len(olvidadas) == limite:
-                break
         return olvidadas

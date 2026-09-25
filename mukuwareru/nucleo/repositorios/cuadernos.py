@@ -10,7 +10,7 @@ import sqlite3
 from collections.abc import Sequence
 
 from mukuwareru.nucleo.modelos.entidades import Cuaderno, Seccion
-from mukuwareru.nucleo.repositorios.base import Repositorio, a_fecha_hora, ahora_iso
+from mukuwareru.nucleo.repositorios.base import Repositorio, a_fecha_hora, ahora_iso, transaccion
 
 _CAMPOS_CUADERNO = "id, proyecto_id, nombre, color, orden, creado_en"
 _CAMPOS_SECCION = "id, cuaderno_id, nombre, color, orden, creado_en"
@@ -70,7 +70,7 @@ class RepositorioCuadernos(Repositorio):
 
     def reordenar(self, ids: Sequence[int]) -> None:
         """Fija ``orden`` = 0..n-1 segun la secuencia recibida."""
-        with self._cx:
+        with transaccion(self._cx):
             self._cx.executemany(
                 "UPDATE cuaderno SET orden = ? WHERE id = ?",
                 [(posicion, id_) for posicion, id_ in enumerate(ids)],
@@ -123,17 +123,6 @@ class RepositorioCuadernos(Repositorio):
         """Cambia el nombre de una seccion."""
         self._cx.execute(
             "UPDATE seccion SET nombre = ? WHERE id = ?", (nombre, seccion_id)
-        )
-
-    def mover_seccion(self, seccion_id: int, cuaderno_id: int) -> None:
-        """Lleva una seccion a otro cuaderno, al final."""
-        siguiente = self._cx.execute(
-            "SELECT COALESCE(MAX(orden), -1) + 1 FROM seccion WHERE cuaderno_id = ?",
-            (cuaderno_id,),
-        ).fetchone()[0]
-        self._cx.execute(
-            "UPDATE seccion SET cuaderno_id = ?, orden = ? WHERE id = ?",
-            (cuaderno_id, siguiente, seccion_id),
         )
 
     def eliminar_seccion(self, seccion_id: int) -> None:

@@ -53,3 +53,21 @@ def test_fecha_corta() -> None:
 )
 def test_porcentaje(parte: int, total: int, esperado: int) -> None:
     assert formato.porcentaje(parte, total) == esperado
+
+
+def test_dias_relativos() -> None:
+    assert formato.dias_relativos(5) == "en 5 dias"
+    assert formato.dias_relativos(1) == "manana"
+    assert formato.dias_relativos(0) == "hoy"
+    assert formato.dias_relativos(-1) == "ayer"
+    assert formato.dias_relativos(-3) == "hace 3 dias"
+
+
+def test_apertura() -> None:
+    from datetime import datetime
+
+    hoy = date(2026, 9, 25)
+    assert formato.apertura(None) == "sin abrir"
+    assert formato.apertura(datetime(2026, 9, 25, 10, 30), hoy=hoy) == "hoy 10:30"
+    assert formato.apertura(datetime(2026, 9, 24, 8, 0), hoy=hoy) == "ayer"
+    assert formato.apertura(datetime(2026, 9, 1, 8, 0), hoy=hoy) == "1 sep 2026"
