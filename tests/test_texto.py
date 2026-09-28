@@ -71,6 +71,15 @@ def test_primera_linea_recorta_por_palabras() -> None:
     assert "palabr…" not in resumen
 
 
+def test_primera_linea_se_queda_en_el_primer_salto() -> None:
+    assert primera_linea("Analisis tecnico\nNi siquiera en un mercado") == "Analisis tecnico"
+    html = (
+        "<!DOCTYPE HTML><html><head><style>p { margin: 0; }</style></head><body>"
+        "<p>Total Return</p><p>Agregar el income a un periodo</p></body></html>"
+    )
+    assert primera_linea(html) == "Total Return"
+
+
 def test_primera_linea_devuelve_el_texto_corto_intacto() -> None:
     assert primera_linea("corta") == "corta"
 

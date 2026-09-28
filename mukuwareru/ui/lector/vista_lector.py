@@ -452,7 +452,7 @@ class VistaLector(QWidget):
             )
         }
         opciones = [
-            (listada.ruta(self.contexto.servicio_notas.titulo_visible(listada.nota)),
+            (f"{listada.titulo}  ({listada.cuaderno} · {listada.seccion})",
              listada.nota.id)
             for listada in candidatas
             if listada.nota.id not in ya_ligadas

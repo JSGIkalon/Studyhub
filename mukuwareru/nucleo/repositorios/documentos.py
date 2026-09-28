@@ -9,7 +9,7 @@ from mukuwareru.nucleo.repositorios.base import Repositorio, a_fecha_hora, ahora
 
 _CAMPOS = """
     id, proyecto_id, ruta_relativa, nombre, huella, paginas, bytes,
-    pagina_actual, zoom, scroll_x, scroll_y, abierto_en, agregado_en
+    pagina_actual, zoom, scroll_x, scroll_y, abierto_en, agregado_en, materia_id
 """
 
 
@@ -124,6 +124,12 @@ class RepositorioDocumentos(Repositorio):
             (pagina, zoom, scroll_x, scroll_y, documento_id),
         )
 
+    def asignar_materia(self, documento_id: int, materia_id: int | None) -> None:
+        """Liga el PDF a una materia, o lo deja sin materia con ``None``."""
+        self._cx.execute(
+            "UPDATE documento SET materia_id = ? WHERE id = ?", (materia_id, documento_id)
+        )
+
     def marcar_abierto(self, documento_id: int) -> None:
         """Registra la apertura, que es lo que ordena «ultimos PDFs»."""
         self._cx.execute(
@@ -150,4 +156,5 @@ def _a_documento(fila: sqlite3.Row) -> Documento:
         scroll_y=fila["scroll_y"],
         abierto_en=a_fecha_hora(fila["abierto_en"]),
         agregado_en=a_fecha_hora(fila["agregado_en"]),
+        materia_id=fila["materia_id"],
     )

@@ -38,7 +38,7 @@ from PySide6.QtWidgets import (
 from mukuwareru.nucleo.modelos import Anotacion, TipoAnotacion
 from mukuwareru.nucleo.repositorios import NotaListada
 from mukuwareru.ui.tema import tokens
-from mukuwareru.utilidades.texto import a_texto_plano, primera_linea
+from mukuwareru.utilidades.texto import a_texto_plano
 
 _ETIQUETAS = {
     TipoAnotacion.MARCADOR: ("Marcador", tokens.ACENTO),
@@ -244,14 +244,9 @@ def _elemento(fila: _Fila) -> QListWidgetItem:
         texto = f"{ubicacion}  ·  {etiqueta}\n{_resumen(fila.anotacion)}"
     else:
         assert fila.nota is not None
-        nota = fila.nota.nota
-        titulo = nota.titulo.strip() or primera_linea(nota.cuerpo_plano) or "Nota"
-        # La ruta del cuaderno va en la propia fila: sin ella, una nota suelta y
-        # una anclada se confunden, y hay que abrirla para saber de donde sale.
-        texto = (
-            f"{ubicacion}  ·  {fila.nota.cuaderno} -> {fila.nota.seccion}\n"
-            f"{titulo}"
-        )
+        # Solo pagina y titulo: la ruta del cuaderno tapaba el titulo y ya se
+        # distingue de una anotacion por el color.
+        texto = f"{ubicacion}  ·  {fila.nota.titulo}"
         color = _COLOR_SUELTA
 
     elemento = QListWidgetItem(texto)

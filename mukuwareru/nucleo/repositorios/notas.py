@@ -18,7 +18,7 @@ from dataclasses import dataclass
 
 from mukuwareru.nucleo.modelos.entidades import Nota, Vinculo
 from mukuwareru.nucleo.repositorios.base import Repositorio, a_fecha_hora, ahora_iso, transaccion
-from mukuwareru.utilidades.texto import a_texto_plano
+from mukuwareru.utilidades.texto import a_texto_plano, primera_linea
 
 _CAMPOS = """
     id, seccion_id, titulo, cuerpo, cuerpo_plano, orden, creado_en, actualizado_en
@@ -27,9 +27,17 @@ _CAMPOS = """
 # Las listas no traen ``cuerpo``: puede llevar imagenes en base64 y ninguna
 # lista lo pinta (el editor abre la nota con ``obtener``). ``cuerpo_plano``, que
 # es lo que se busca y se previsualiza, si viene.
-_CAMPOS_N = """
+#
+# ``inicio`` es la excepcion acotada: el principio del cuerpo, solo de las notas
+# sin titulo, para deducir de el su primera linea real. ``cuerpo_plano`` no
+# sirve para eso porque esta aplanado en una linea. Basta con el principio: la
+# cabecera de estilos que escribe Qt ronda los 500 caracteres.
+_INICIO_TITULO = 4000
+_CAMPOS_N = f"""
     n.id, n.seccion_id, n.titulo, '' AS cuerpo, n.cuerpo_plano, n.orden,
-    n.creado_en, n.actualizado_en
+    n.creado_en, n.actualizado_en,
+    CASE WHEN n.titulo = '' THEN substr(n.cuerpo, 1, {_INICIO_TITULO}) ELSE '' END
+        AS inicio
 """
 
 _CAMPOS_VINCULO = """
@@ -77,6 +85,7 @@ class NotaListada:
     cuaderno: str
     seccion: str
     destinos: tuple[str, ...] = ()
+    titulo: str = ""
 
     def ruta(self, titulo: str) -> str:
         """``Cuaderno -> Seccion -> Nota -> destinos``, en una linea.
@@ -188,6 +197,7 @@ class RepositorioNotas(Repositorio):
                 cuaderno=listada.cuaderno,
                 seccion=listada.seccion,
                 destinos=tuple(por_nota.get(listada.nota.id, ())),
+                titulo=listada.titulo,
             )
             for listada in listadas
         ]
@@ -440,8 +450,20 @@ def _a_nota(fila: sqlite3.Row) -> Nota:
 
 
 def _a_listada(fila: sqlite3.Row) -> NotaListada:
+    """La nota de una lista, con el titulo que se le muestra ya resuelto.
+
+    Si el cuerpo empieza por una imagen, su base64 no cabe en ``inicio`` y la
+    primera linea sale vacia: entonces vale el principio de ``cuerpo_plano``.
+    """
+    nota = _a_nota(fila)
+    titulo = (
+        nota.titulo.strip()
+        or primera_linea(fila["inicio"] or "")
+        or primera_linea(nota.cuerpo_plano)
+        or "Nota sin titulo"
+    )
     return NotaListada(
-        nota=_a_nota(fila), cuaderno=fila["cuaderno"], seccion=fila["seccion"]
+        nota=nota, cuaderno=fila["cuaderno"], seccion=fila["seccion"], titulo=titulo
     )
 
 

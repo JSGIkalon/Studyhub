@@ -55,8 +55,12 @@ class PiezasReloj:
         self._clave: str | None = None
 
     def actualizar(self, fase: Fase, restante_seg: int, estado: Estado) -> bool:
-        """Cuenta atras del Pomodoro. Devuelve si cambio la fase."""
-        self.detener.setVisible(False)
+        """Cuenta atras del Pomodoro. Devuelve si cambio la fase.
+
+        Detener sale tambien aqui: el reloj ya no se esconde al pausar, asi que
+        tiene que poder cerrarse desde el propio reloj.
+        """
+        self.detener.setVisible(True)
         return self._volcar(str(fase), fase.etiqueta.upper(), restante_seg, estado)
 
     def actualizar_libre(self, transcurrido_seg: int, estado: Estado) -> bool:

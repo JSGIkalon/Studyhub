@@ -35,10 +35,11 @@ _SEPARADORAS = frozenset({
 class _Extractor(HTMLParser):
     """Acumula el texto visible de un fragmento HTML."""
 
-    def __init__(self) -> None:
+    def __init__(self, separador: str = " ") -> None:
         super().__init__(convert_charrefs=True)
         self._trozos: list[str] = []
         self._ignorando = 0
+        self._separador = separador
 
     def handle_starttag(self, tag: str, attrs: object) -> None:
         if tag in _INVISIBLES:
@@ -46,13 +47,13 @@ class _Extractor(HTMLParser):
         elif tag == "img":
             self._trozos.append(" [imagen] ")
         elif tag in _SEPARADORAS:
-            self._trozos.append(" ")
+            self._trozos.append(self._separador)
 
     def handle_endtag(self, tag: str) -> None:
         if tag in _INVISIBLES and self._ignorando:
             self._ignorando -= 1
         elif tag in _SEPARADORAS:
-            self._trozos.append(" ")
+            self._trozos.append(self._separador)
 
     def handle_data(self, data: str) -> None:
         if not self._ignorando:
@@ -89,13 +90,31 @@ def a_texto_plano(texto: str) -> str:
 def primera_linea(texto: str, maximo: int = 80) -> str:
     """Titulo implicito de una nota sin titulo, recortado por palabras.
 
-    Recortar a mitad de palabra se lee peor que recortar antes; solo se parte una
-    palabra si es tan larga que no cabe entera.
+    Es la primera linea **de verdad** —hasta el primer salto o fin de parrafo—,
+    no el principio del cuerpo aplanado: con eso el titulo de una nota era su
+    primer parrafo entero. Recortar a mitad de palabra se lee peor que recortar
+    antes; solo se parte una palabra si es tan larga que no cabe entera.
     """
-    plano = a_texto_plano(texto)
+    plano = _primera_linea_visible(texto)
     if len(plano) <= maximo:
         return plano
     recorte = plano[:maximo]
     if " " in recorte:
         recorte = recorte.rsplit(" ", 1)[0]
     return recorte.rstrip() + "…"
+
+
+def _primera_linea_visible(texto: str) -> str:
+    """Primera linea no vacia del texto, con los espacios normalizados."""
+    if not texto:
+        return ""
+    if es_enriquecido(texto):
+        extractor = _Extractor(separador="\n")
+        extractor.feed(texto)
+        extractor.close()
+        texto = unescape(extractor.resultado())
+    texto = texto.replace(_OBJETO_INCRUSTADO, " [imagen] ")
+    for linea in texto.splitlines():
+        if limpia := " ".join(linea.split()):
+            return limpia
+    return ""

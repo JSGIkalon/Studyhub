@@ -231,7 +231,7 @@ def test_crear_para_documento_deja_la_nota_ya_ligada(
         proyecto.id, documento, 12, cuerpo="Lo que entendi de esta pagina"
     )
 
-    assert nota.titulo == "Lo que entendi de esta pagina"
+    assert servicio.titulo_visible(nota) == "Lo que entendi de esta pagina"
     vinculo = nota.vinculos[0]
     assert (vinculo.documento_id, vinculo.pagina) == (documento, 12)
     assert len(servicio.para_documento(documento, 12)) == 1
@@ -242,10 +242,60 @@ def test_el_titulo_se_deduce_de_la_primera_linea(
 ) -> None:
     servicio = ServicioNotas(conn)
     nota = servicio.crear_rapida(proyecto.id)
-    guardada = servicio.guardar(nota.id, titulo="   ", cuerpo="Lo primero que apunto")
+    guardada = servicio.guardar(
+        nota.id, titulo="   ", cuerpo="Lo primero que apunto\nY aqui sigue la nota"
+    )
 
     assert guardada is not None
-    assert guardada.titulo == "Lo primero que apunto"
+    # El deducido no se graba: asi sigue a la primera linea si se edita.
+    assert guardada.titulo == ""
+    assert servicio.titulo_visible(guardada) == "Lo primero que apunto"
+    listada = servicio.buscar(proyecto.id)[0]
+    assert listada.titulo == "Lo primero que apunto"
+
+
+def test_el_titulo_del_usuario_manda_sobre_la_primera_linea(
+    conn: sqlite3.Connection, proyecto: Proyecto
+) -> None:
+    servicio = ServicioNotas(conn)
+    nota = servicio.crear_rapida(proyecto.id)
+    servicio.guardar(nota.id, titulo="Warrants", cuerpo="Los warrants son opciones")
+
+    assert servicio.buscar(proyecto.id)[0].titulo == "Warrants"
+
+
+def test_la_nota_sobre_un_pdf_hereda_su_materia(
+    conn: sqlite3.Connection, proyecto: Proyecto
+) -> None:
+    documento = _documento(conn, proyecto)
+    equity = RepositorioMaterias(conn).crear(proyecto.id, "Equity")
+    servicio = ServicioNotas(conn)
+    servicio.asignar_materia_documento(documento, equity.id)
+
+    nota = servicio.crear_para_documento(proyecto.id, documento, 3, cuerpo="Idea")
+
+    assert servicio.materia_de(nota) == equity.id
+
+
+def test_asignar_materia_deja_una_sola(
+    conn: sqlite3.Connection, proyecto: Proyecto
+) -> None:
+    materias = RepositorioMaterias(conn)
+    fsa = materias.crear(proyecto.id, "FSA")
+    equity = materias.crear(proyecto.id, "Equity")
+    servicio = ServicioNotas(conn)
+    nota = servicio.crear_rapida(proyecto.id, cuerpo="x")
+
+    servicio.asignar_materia(nota.id, fsa.id)
+    servicio.asignar_materia(nota.id, equity.id)
+    recargada = RepositorioNotas(conn).obtener(nota.id)
+    assert recargada is not None
+    assert [v.materia_id for v in recargada.vinculos if v.materia_id] == [equity.id]
+
+    servicio.asignar_materia(nota.id, None)
+    recargada = RepositorioNotas(conn).obtener(nota.id)
+    assert recargada is not None
+    assert servicio.materia_de(recargada) is None
 
 
 # --- Etiquetas -------------------------------------------------------------

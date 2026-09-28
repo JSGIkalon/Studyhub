@@ -107,11 +107,7 @@ class ServicioBusqueda:
         return [
             Resultado(
                 familia=Familia.NOTA,
-                titulo=(
-                    listada.nota.titulo.strip()
-                    or primera_linea(listada.nota.cuerpo_plano)
-                    or "Nota sin titulo"
-                ),
+                titulo=listada.titulo,
                 subtitulo=" -> ".join(
                     (listada.cuaderno, listada.seccion, *listada.destinos)
                 ),

@@ -634,11 +634,12 @@ class VistaPomodoro(VistaBase):
     def corriendo(self) -> bool:
         """Si hay algo cronometrandose, y por tanto el reloj flotante debe salir.
 
-        Una sesion indefinida cuenta tambien en pausa: no termina sola, asi que
-        esconder su reloj dejaria «Detener» fuera de alcance con la ventana
-        minimizada, que es justo cuando se usa.
+        Una pausa cuenta tambien, en el pomodoro y en la sesion indefinida:
+        esconder el reloj dejaria «Reanudar» y «Detener» fuera de alcance con
+        la ventana minimizada, que es justo cuando se usan. Solo lo quita
+        detenerlo del todo.
         """
-        return self._reloj.estado is Estado.CORRIENDO or self._cronometro.activo
+        return self._reloj.estado is not Estado.DETENIDO or self._cronometro.activo
 
     def alternar_reloj(self) -> None:
         """Inicia o pausa desde fuera de la vista (mini ventana, barra lateral).
@@ -651,10 +652,26 @@ class VistaPomodoro(VistaBase):
         else:
             self._alternar()
 
+    def iniciar_sesion_libre(self) -> None:
+        """Abre la sesion indefinida desde fuera de la vista (barra lateral)."""
+        if not self._cronometro.activo:
+            self._alternar_libre()
+
     def detener_sesion_libre(self) -> None:
         """Cierra la sesion indefinida desde fuera de la vista."""
         if self._cronometro.activo:
             self._detener_libre()
+
+    def detener_reloj(self) -> None:
+        """Detiene desde fuera lo que se este cronometrando.
+
+        Para el pomodoro es lo mismo que «Reiniciar» en la vista: el reloj
+        vuelve a DETENIDO y el flotante desaparece.
+        """
+        if self._cronometro.activo:
+            self._detener_libre()
+        else:
+            self._reiniciar()
 
     def finalizar_por_cierre(self) -> None:
         """Termina el pomodoro al cerrar la aplicacion.

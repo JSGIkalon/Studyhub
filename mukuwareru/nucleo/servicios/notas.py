@@ -34,6 +34,15 @@ from mukuwareru.utilidades.texto import a_texto_plano, primera_linea
 SIN_TITULO = "Nota sin titulo"
 
 
+def titulo_de(nota: Nota) -> str:
+    """Como llamar a una nota en una lista: su titulo o su primera linea.
+
+    Se deduce de ``cuerpo`` y no de ``cuerpo_plano``, que esta aplanado en una
+    sola linea y convertiria el primer parrafo entero en titulo.
+    """
+    return nota.titulo.strip() or primera_linea(nota.cuerpo) or SIN_TITULO
+
+
 @dataclass(frozen=True, slots=True)
 class NodoArbol:
     """Un cuaderno con sus secciones y cuantas notas tiene cada una."""
@@ -107,19 +116,18 @@ class ServicioNotas:
         return self._notas.crear(seccion.id, titulo=titulo, cuerpo=cuerpo)
 
     def guardar(self, nota_id: int, *, titulo: str, cuerpo: str) -> Nota | None:
-        """Guarda la nota; si no tiene titulo, lo deduce de su primera linea.
+        """Guarda la nota con el titulo que haya escrito el usuario, o ninguno.
 
-        Obligar a poner titulo antes de escribir corta el impulso de apuntar
-        algo; dejar una lista de «(sin titulo)» tampoco sirve. Deducirlo resuelve
-        las dos cosas, y sigue siendo editable.
+        El titulo deducido **no** se graba: si se guardara, dejaria de seguir a
+        la primera linea al editarla y ya no se distinguiria de uno escrito a
+        mano. Se deduce al mostrarla, en ``titulo_visible``.
         """
-        limpio = titulo.strip() or primera_linea(cuerpo)
-        self._notas.actualizar(nota_id, titulo=limpio, cuerpo=cuerpo)
+        self._notas.actualizar(nota_id, titulo=titulo.strip(), cuerpo=cuerpo)
         return self._notas.obtener(nota_id)
 
     def titulo_visible(self, nota: Nota) -> str:
-        """Como llamar a la nota en una lista, aunque no tenga titulo."""
-        return nota.titulo.strip() or primera_linea(nota.cuerpo_plano) or SIN_TITULO
+        """El titulo del usuario o, si no puso ninguno, la primera linea."""
+        return titulo_de(nota)
 
     def buscar(
         self,
@@ -179,15 +187,12 @@ class ServicioNotas:
         el sitio donde desarrollar la idea, no un traslado.
         """
         semilla = anotacion.texto_seleccionado or a_texto_plano(anotacion.comentario or "")
-        nota = self.crear_rapida(
-            proyecto_id,
-            titulo=primera_linea(semilla) or SIN_TITULO,
-            cuerpo=semilla,
-        )
+        nota = self.crear_rapida(proyecto_id, cuerpo=semilla)
         self._notas.vincular_anotacion(nota.id, anotacion.id)
         self._notas.vincular_documento(
             nota.id, anotacion.documento_id, pagina=anotacion.pagina
         )
+        self._heredar_materia(nota.id, anotacion.documento_id)
         recargada = self._notas.obtener(nota.id)
         return recargada if recargada is not None else nota
 
@@ -245,9 +250,46 @@ class ServicioNotas:
         Es el camino de «Nota en cuaderno» del lector: sin esto habria que crear
         la nota, ir a la vista Notas y relacionarla a mano.
         """
-        nota = self.crear_rapida(
-            proyecto_id, titulo=titulo or primera_linea(cuerpo), cuerpo=cuerpo
-        )
+        nota = self.crear_rapida(proyecto_id, titulo=titulo, cuerpo=cuerpo)
         self._notas.vincular_documento(nota.id, documento_id, pagina=pagina)
+        self._heredar_materia(nota.id, documento_id)
         recargada = self._notas.obtener(nota.id)
         return recargada if recargada is not None else nota
+
+    # -- Materia ------------------------------------------------------------
+
+    def materia_de(self, nota: Nota) -> int | None:
+        """La materia de la nota: la ligada directamente o la de un modulo suyo."""
+        for vinculo in nota.vinculos:
+            if vinculo.materia_id is not None:
+                return vinculo.materia_id
+        for vinculo in nota.vinculos:
+            if vinculo.modulo_id is not None:
+                modulo = self._modulos.obtener(vinculo.modulo_id)
+                if modulo is not None:
+                    return modulo.materia_id
+        return None
+
+    def asignar_materia(self, nota_id: int, materia_id: int | None) -> None:
+        """Deja la nota ligada a una sola materia, o a ninguna con ``None``.
+
+        Una nota puede seguir relacionada con varias materias desde «Relacionar
+        con…»; este es el atajo del selector del editor, que fija *la* materia.
+        """
+        for vinculo in self._notas.vinculos_de(nota_id):
+            if vinculo.materia_id is not None and vinculo.materia_id != materia_id:
+                self._notas.desvincular(vinculo.id)
+        if materia_id is not None:
+            self._notas.vincular_materia(nota_id, materia_id)
+
+    def asignar_materia_documento(
+        self, documento_id: int, materia_id: int | None
+    ) -> None:
+        """Liga el PDF a una materia; las notas nuevas sobre el la heredan."""
+        self._documentos.asignar_materia(documento_id, materia_id)
+
+    def _heredar_materia(self, nota_id: int, documento_id: int) -> None:
+        """Una nota escrita sobre un PDF es de la materia de ese PDF."""
+        documento = self._documentos.obtener(documento_id)
+        if documento is not None and documento.materia_id is not None:
+            self._notas.vincular_materia(nota_id, documento.materia_id)

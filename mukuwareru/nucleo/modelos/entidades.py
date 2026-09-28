@@ -254,6 +254,7 @@ class Documento:
     scroll_y: float = 0.0
     abierto_en: datetime | None = None
     agregado_en: datetime | None = None
+    materia_id: int | None = None
 
 
 @dataclass(slots=True)

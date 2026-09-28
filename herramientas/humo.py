@@ -951,9 +951,15 @@ def _mini_pomodoro(ventana: VentanaPrincipal, app: QApplication) -> None:
 
     mini.alternar_pedido.emit()
     app.processEvents()
-    comprobar(not vista.corriendo, "el boton de la mini pausa el reloj")
-    comprobar(not mini.isVisible(), "al pausarse se retira sola")
-    vista._reiniciar()
+    comprobar(
+        vista._reloj.estado is Estado.PAUSADO, "el boton de la mini pausa el reloj"
+    )
+    comprobar(mini.isVisible(), "en pausa sigue a la vista")
+
+    mini.detener_pedido.emit()
+    app.processEvents()
+    comprobar(not vista.corriendo, "Detener para el reloj del todo")
+    comprobar(not mini.isVisible(), "al detenerse se retira sola")
 
 
 def _notas_en_el_lector(
@@ -1408,7 +1414,8 @@ def _notas(ventana: VentanaPrincipal, contexto: Contexto, app: QApplication) -> 
     guardada = contexto.notas.obtener(nota.id)
     comprobar(guardada is not None and "convexidad" in guardada.cuerpo, "el cuerpo se guarda")
     comprobar(
-        guardada is not None and guardada.titulo.startswith("La duracion"),
+        guardada is not None
+        and contexto.servicio_notas.titulo_visible(guardada).startswith("La duracion"),
         "el titulo se deduce de la primera linea",
     )
 

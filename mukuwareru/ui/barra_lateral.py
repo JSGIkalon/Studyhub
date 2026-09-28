@@ -56,6 +56,7 @@ class BarraLateral(QWidget):
     personalizar_pedido = Signal()
     pomodoro_alternado = Signal()
     pomodoro_detenido = Signal()
+    trabajo_libre_pedido = Signal()
     ocultar_pedido = Signal()
 
     def __init__(self, contexto: Contexto, parent: QWidget | None = None) -> None:
@@ -120,6 +121,16 @@ class BarraLateral(QWidget):
         # Clic en el reloj: a la seccion Pomodoro, como el doble clic del flotante.
         self._mini_pomodoro.ir_pedido.connect(lambda: self.seccion_elegida.emit("pomodoro"))
         raiz.addWidget(self._mini_pomodoro)
+        # Arranque de la sesion indefinida desde cualquier seccion. En cuanto
+        # hay algo cronometrandose lo sustituye el reloj compacto, que ya
+        # ofrece pausar y detener.
+        self._boton_libre = QPushButton()
+        self._boton_libre.setObjectName("BotonNuevoProyecto")
+        self._boton_libre.setIcon(iconos.icono("reloj", tokens.TEXTO_TENUE))
+        self._boton_libre.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._boton_libre.clicked.connect(self.trabajo_libre_pedido.emit)
+        self._aplicar_texto(self._boton_libre, "  Iniciar trabajo indefinido")
+        raiz.addWidget(self._boton_libre)
         raiz.addSpacing(tokens.ESPACIO_PEQUENO)
         self._tarjeta_examen = _TarjetaExamen()
         raiz.addWidget(self._tarjeta_examen)
@@ -199,9 +210,11 @@ class BarraLateral(QWidget):
         for boton in (*self._botones_proyecto.values(), *self._botones_seccion.values()):
             self._aplicar_texto(boton, boton.property("texto_completo") or "")
         self._aplicar_texto(self._boton_nuevo, "  Nuevo proyecto")
+        self._aplicar_texto(self._boton_libre, "  Iniciar trabajo indefinido")
 
         self.refrescar_cuenta_atras()
         self._mini_pomodoro.setVisible(self._pomodoro_corriendo and not self._colapsada)
+        self._refrescar_boton_libre()
 
     @property
     def colapsada(self) -> bool:
@@ -346,6 +359,7 @@ class BarraLateral(QWidget):
         if activo is not None and (boton := self._botones_proyecto.get(activo.id)):
             boton.setChecked(True)
         self.refrescar_cuenta_atras()
+        self._refrescar_boton_libre()
 
     def _al_cambiar_datos(self, _origen: object, dominio: object) -> None:
         # La cuenta atras solo depende de los hitos.
@@ -381,6 +395,16 @@ class BarraLateral(QWidget):
         """Muestra u oculta el reloj compacto segun si el Pomodoro esta corriendo."""
         self._pomodoro_corriendo = visible
         self._mini_pomodoro.setVisible(visible and not self._colapsada)
+        self._refrescar_boton_libre()
+
+    def _refrescar_boton_libre(self) -> None:
+        """El boton de arranque sale solo si no hay nada cronometrandose.
+
+        Colapsada la barra se queda como icono: el reloj compacto no cabe, pero
+        arrancar si. Sin proyecto no hay donde registrar la sesion.
+        """
+        self._boton_libre.setVisible(not self._pomodoro_corriendo)
+        self._boton_libre.setEnabled(self.contexto.proyecto is not None)
 
 
 class _TarjetaExamen(QFrame):

@@ -18,16 +18,29 @@ class TarjetaDocumento(Tarjeta):
     """Nombre, metadatos y avance de lectura. Se abre con doble clic."""
 
     abrir = Signal(object)  # Documento
+    menu_pedido = Signal(object)  # Documento
 
     def __init__(
-        self, documento: Documento, notas: int = 0, parent: QWidget | None = None
+        self,
+        documento: Documento,
+        notas: int = 0,
+        materia: str = "",
+        parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent=parent)
         self.documento = documento
         self._notas = notas
+        self._materia = materia
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.setToolTip(f"{documento.ruta_relativa}\n\nDoble clic para abrir")
+        self.setToolTip(
+            f"{documento.ruta_relativa}\n\nDoble clic para abrir · "
+            "clic derecho para asignar materia"
+        )
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(
+            lambda _pos: self.menu_pedido.emit(self.documento)
+        )
         self._construir()
 
     def _construir(self) -> None:
@@ -53,6 +66,10 @@ class TarjetaDocumento(Tarjeta):
             cabecera.addWidget(insignia, 0, Qt.AlignmentFlag.AlignTop)
 
         self.contenido.addWidget(contenedor(cabecera))
+
+        materia = QLabel(self._materia or "Sin materia")
+        materia.setObjectName("TextoSuave" if self._materia else "TextoTenue")
+        self.contenido.addWidget(materia)
 
         detalle = QLabel(self._detalle())
         detalle.setObjectName("TextoTenue")

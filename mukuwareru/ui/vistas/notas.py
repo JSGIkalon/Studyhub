@@ -41,7 +41,6 @@ from mukuwareru.ui.dialogos.vincular import DialogoVincular
 from mukuwareru.ui.tema import tokens
 from mukuwareru.ui.vistas.base import VistaBase
 from mukuwareru.ui.widgets import contenedor, vaciar
-from mukuwareru.utilidades.texto import primera_linea
 
 _ETIQUETAS_ANOTACION = {
     TipoAnotacion.MARCADOR: ("Marcador", tokens.ACENTO),
@@ -167,6 +166,21 @@ class VistaNotas(VistaBase):
         self._titulo_nota.setPlaceholderText("Titulo (se deduce solo si lo dejas vacio)")
         self._titulo_nota.textEdited.connect(self._al_editar)
 
+        # La materia va a la vista y no escondida en «Relacionar con…»: es lo
+        # primero que se quiere saber de una nota y lo que agrupa el estudio.
+        self._combo_materia = QComboBox()
+        self._combo_materia.setToolTip(
+            "Materia de la nota. Las notas escritas sobre un PDF heredan la del PDF."
+        )
+        self._combo_materia.activated.connect(self._al_elegir_materia)
+        fila_materia = QHBoxLayout()
+        fila_materia.setSpacing(tokens.ESPACIO_PEQUENO)
+        etiqueta_materia = QLabel("Materia")
+        etiqueta_materia.setObjectName("TextoTenue")
+        fila_materia.addWidget(etiqueta_materia)
+        fila_materia.addWidget(self._combo_materia, 1)
+        self._fila_materia = contenedor(fila_materia)
+
         self._editor = _EditorConImagenes()
         self._editor.setAcceptRichText(True)
         self._editor.setPlaceholderText(
@@ -194,6 +208,7 @@ class VistaNotas(VistaBase):
         columna.setContentsMargins(0, 0, 0, 0)
         columna.setSpacing(tokens.ESPACIO_PEQUENO)
         columna.addWidget(self._titulo_nota)
+        columna.addWidget(self._fila_materia)
         columna.addWidget(self._editor, 1)
         columna.addLayout(cabecera_enlaces)
         columna.addLayout(self._caja_enlaces)
@@ -342,10 +357,34 @@ class VistaNotas(VistaBase):
         self._sucio = False
 
         self._mostrar_editor(True)
+        self._cargar_materias()
         self._pintar_enlaces()
+
+    def _cargar_materias(self) -> None:
+        """Rellena el selector con las materias del proyecto y marca la de la nota."""
+        proyecto = self.contexto.proyecto
+        self._combo_materia.clear()
+        self._combo_materia.addItem("Sin materia", None)
+        if proyecto is None or self._nota_abierta is None:
+            return
+        for materia in self.contexto.materias.listar(proyecto.id):
+            self._combo_materia.addItem(materia.nombre, materia.id)
+        actual = self.contexto.servicio_notas.materia_de(self._nota_abierta)
+        self._combo_materia.setCurrentIndex(max(0, self._combo_materia.findData(actual)))
+
+    def _al_elegir_materia(self, _indice: int) -> None:
+        if self._nota_abierta is None:
+            return
+        self.guardar_pendiente()
+        self.contexto.servicio_notas.asignar_materia(
+            self._nota_abierta.id, self._combo_materia.currentData()
+        )
+        self._abrir_nota(self._nota_abierta.id)
+        self.contexto.notificar_cambio(self)
 
     def _mostrar_editor(self, con_nota: bool) -> None:
         self._titulo_nota.setVisible(con_nota)
+        self._fila_materia.setVisible(con_nota)
         self._editor.setVisible(con_nota)
         self._boton_enlazar.setEnabled(con_nota)
         if not con_nota:
@@ -394,10 +433,7 @@ class VistaNotas(VistaBase):
         """
         elemento = self._lista.currentItem()
         if elemento is not None and elemento.data(Qt.ItemDataRole.UserRole) == nota.id:
-            elemento.setText(
-                f"{self.contexto.servicio_notas.titulo_visible(nota)}\n"
-                f"{primera_linea(nota.cuerpo_plano, 60)}"
-            )
+            elemento.setText(self.contexto.servicio_notas.titulo_visible(nota))
 
     def hideEvent(self, event: object) -> None:  # noqa: N802 (API de Qt)
         self.guardar_pendiente()
@@ -647,16 +683,7 @@ class VistaNotas(VistaBase):
         """
         if self._nota_abierta is None:
             return None
-        for vinculo in self._nota_abierta.vinculos:
-            if vinculo.materia_id is not None:
-                return vinculo.materia_id
-        for vinculo in self._nota_abierta.vinculos:
-            if vinculo.modulo_id is None:
-                continue
-            modulo = self.contexto.modulos.obtener(vinculo.modulo_id)
-            if modulo is not None:
-                return modulo.materia_id
-        return None
+        return self.contexto.servicio_notas.materia_de(self._nota_abierta)
 
     # -- Arbol ---------------------------------------------------------------
 
@@ -774,22 +801,21 @@ class VistaNotas(VistaBase):
 
 
 def _elemento_de_nota(listada: NotaListada) -> QListWidgetItem:
-    """Una nota con su ruta completa: cuaderno, seccion, titulo y con que se liga.
+    """Una nota en la lista: solo su titulo.
 
-    La ruta va en la propia fila y no en un tooltip: saber donde vive una nota y
-    de que habla es justo lo que uno busca al recorrer la lista, y tener que
-    abrirlas una a una para averiguarlo es lo que hacia falta arreglar.
+    El titulo es el que puso el usuario o, si no, la primera linea de la nota.
+    Donde vive y con que se liga va en el tooltip: en la fila, la ruta y un
+    trozo del cuerpo tapaban el titulo, que es lo que se busca al recorrerla.
     """
-    nota = listada.nota
-    titulo = nota.titulo.strip() or primera_linea(nota.cuerpo_plano) or "Nota sin titulo"
-    elemento = QListWidgetItem(
-        f"{listada.ruta(titulo)}\n{primera_linea(nota.cuerpo_plano, 70)}"
+    elemento = QListWidgetItem(listada.titulo)
+    elemento.setData(Qt.ItemDataRole.UserRole, listada.nota.id)
+    ubicacion = f"{listada.cuaderno} · {listada.seccion}"
+    relacion = (
+        "Relacionada con: " + ", ".join(listada.destinos)
+        if listada.destinos
+        else "Sin relacionar todavia."
     )
-    elemento.setData(Qt.ItemDataRole.UserRole, nota.id)
-    if listada.destinos:
-        elemento.setToolTip("Relacionada con: " + ", ".join(listada.destinos))
-    else:
-        elemento.setToolTip("Sin relacionar todavia.")
+    elemento.setToolTip(f"{ubicacion}\n{relacion}")
     return elemento
 
 

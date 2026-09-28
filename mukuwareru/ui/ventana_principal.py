@@ -314,9 +314,10 @@ class VentanaPrincipal(QMainWindow):
         vista.fase_termino.connect(lambda *_: self._refrescar_mini())
         vista.reloj_avanzo.connect(self._refrescar_mini)
         self.mini_pomodoro.alternar_pedido.connect(vista.alternar_reloj)
-        self.mini_pomodoro.detener_pedido.connect(vista.detener_sesion_libre)
+        self.mini_pomodoro.detener_pedido.connect(vista.detener_reloj)
         self.barra_lateral.pomodoro_alternado.connect(vista.alternar_reloj)
-        self.barra_lateral.pomodoro_detenido.connect(vista.detener_sesion_libre)
+        self.barra_lateral.pomodoro_detenido.connect(vista.detener_reloj)
+        self.barra_lateral.trabajo_libre_pedido.connect(vista.iniciar_sesion_libre)
         self._refrescar_mini()
 
     def _refrescar_mini(self) -> None:

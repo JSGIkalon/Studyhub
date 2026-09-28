@@ -13,12 +13,14 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QFileSystemWatcher, Qt, QTimer, Signal
+from PySide6.QtGui import QCursor
 from PySide6.QtWidgets import (
     QFileDialog,
     QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMenu,
     QMessageBox,
     QPushButton,
     QScrollArea,
@@ -168,9 +170,20 @@ class VistaBiblioteca(VistaBase):
             else {}
         )
 
+        materias = (
+            {m.id: m.nombre for m in self.contexto.materias.listar(proyecto.id)}
+            if proyecto is not None
+            else {}
+        )
+
         for indice, documento in enumerate(visibles):
-            tarjeta = TarjetaDocumento(documento, notas.get(documento.id, 0))
+            tarjeta = TarjetaDocumento(
+                documento,
+                notas.get(documento.id, 0),
+                materias.get(documento.materia_id, "") if documento.materia_id else "",
+            )
             tarjeta.abrir.connect(self._abrir)
+            tarjeta.menu_pedido.connect(self._menu_documento)
             self._rejilla.addWidget(tarjeta, indice // _COLUMNAS, indice % _COLUMNAS)
 
     def _estado_vacio(self, hay_documentos: bool) -> QLabel:
@@ -203,6 +216,31 @@ class VistaBiblioteca(VistaBase):
     def _abrir(self, documento: object) -> None:
         if isinstance(documento, Documento):
             self.abrir_documento.emit(documento)
+
+    def _menu_documento(self, documento: object) -> None:
+        """Menu contextual de una tarjeta: asignar o quitar la materia del PDF."""
+        proyecto = self.contexto.proyecto
+        if not isinstance(documento, Documento) or proyecto is None:
+            return
+        menu = QMenu(self)
+        submenu = menu.addMenu("Materia")
+        opciones: list[tuple[str, int | None]] = [("Sin materia", None)]
+        opciones += [(m.nombre, m.id) for m in self.contexto.materias.listar(proyecto.id)]
+        for nombre, materia_id in opciones:
+            accion = submenu.addAction(nombre)
+            accion.setCheckable(True)
+            accion.setChecked(documento.materia_id == materia_id)
+            accion.triggered.connect(
+                lambda _m=False, d=documento.id, i=materia_id: self._asignar_materia(d, i)
+            )
+        menu.exec(QCursor.pos())
+
+    def _asignar_materia(self, documento_id: int, materia_id: int | None) -> None:
+        self.contexto.servicio_notas.asignar_materia_documento(documento_id, materia_id)
+        self.contexto.notificar_cambio(self)
+        proyecto = self.contexto.proyecto
+        if proyecto is not None:
+            self._pintar(self.contexto.documentos.listar(proyecto.id))
 
     def _anadir_pdfs(self) -> None:
         """Copia PDFs elegidos por el usuario a la carpeta del proyecto.
