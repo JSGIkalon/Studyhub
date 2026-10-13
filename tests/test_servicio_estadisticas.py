@@ -125,6 +125,29 @@ def test_proyecto_sin_sesiones(conn: sqlite3.Connection) -> None:
     assert (resumen.segundos_total, resumen.racha, resumen.pomodoros_hoy) == (0, 0, 0)
 
 
+def test_consolidado_suma_horas_y_une_las_rachas(
+    conn: sqlite3.Connection, proyecto_con_sesiones: int
+) -> None:
+    """Hoy se estudio CFA y ayer MSc: la racha es de 2 dias, no 1 + 1."""
+    otro = RepositorioProyectos(conn).crear("MSc").id
+    RepositorioSesiones(conn).crear(
+        otro,
+        tipo=TipoSesion.TRABAJO,
+        origen=OrigenSesion.POMODORO,
+        inicio=datetime.combine(HOY - timedelta(days=2), datetime.min.time()),
+        duracion_seg=3600,
+    )
+    servicio = ServicioEstadisticas(conn)
+
+    total = servicio.resumen_varios([proyecto_con_sesiones, otro], HOY)
+    assert total.segundos_total == 3600 + 7200 + 10800 + 3600
+    assert total.racha == 3  # hoy, ayer (CFA) y anteayer (MSc)
+    assert servicio.resumen_varios([otro], HOY).segundos_total == 3600
+
+    serie = servicio.por_dia_varios([proyecto_con_sesiones, otro], dias=3, hoy=HOY)
+    assert [s for _, s in serie] == [3600, 7200, 3600]  # anteayer, ayer, hoy
+
+
 # --- Reparto del tiempo por materia ---------------------------------------
 
 

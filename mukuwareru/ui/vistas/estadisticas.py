@@ -10,6 +10,7 @@ from datetime import date, timedelta
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QComboBox,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -18,6 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from mukuwareru.nucleo.modelos.entidades import Proyecto
 from mukuwareru.nucleo.servicios import ResumenProgreso
 from mukuwareru.ui.tema import tokens
 from mukuwareru.ui.vistas.base import VistaBase
@@ -36,10 +38,12 @@ _DIAS_GRAFICO = 30
 _SEMANAS = 12
 _MESES = 12
 _COLUMNAS_METRICAS = 4
+# Dato del selector que representa a todos los proyectos juntos.
+_CONSOLIDADO = -1
 
 
 class VistaEstadisticas(VistaBase):
-    """Horas por dia, semana y mes, mas los totales del proyecto."""
+    """Horas por dia, semana y mes de un proyecto, o de todos consolidados."""
 
     titulo = "Estadisticas"
     ignora = frozenset({"anotaciones", "documentos", "notas", "resultados"})
@@ -62,9 +66,20 @@ class VistaEstadisticas(VistaBase):
         columna.setSpacing(tokens.ESPACIO)
         desplazable.setWidget(lienzo)
 
+        self._seleccion: int = _CONSOLIDADO
+        self._activo_visto: int | None = None
+
+        cabecera = QHBoxLayout()
         titulo = QLabel(self.titulo)
         titulo.setObjectName("TituloVista")
-        columna.addWidget(titulo)
+        cabecera.addWidget(titulo)
+        cabecera.addStretch(1)
+        self._selector = QComboBox()
+        self._selector.setMinimumWidth(220)
+        self._selector.setToolTip("Proyecto a analizar, o el consolidado de todos")
+        self._selector.currentIndexChanged.connect(self._al_elegir)
+        cabecera.addWidget(self._selector)
+        columna.addLayout(cabecera)
 
         rejilla = QGridLayout()
         rejilla.setSpacing(tokens.ESPACIO)
@@ -127,9 +142,11 @@ class VistaEstadisticas(VistaBase):
     # -- Datos --------------------------------------------------------------
 
     def recargar(self) -> None:
-        """Recalcula todas las cifras y graficos del proyecto activo."""
-        proyecto = self.contexto.proyecto
-        if proyecto is None:
+        """Recalcula las cifras y graficos del proyecto elegido, o del consolidado."""
+        activo = self.contexto.proyecto
+        proyectos = self.contexto.proyectos.listar()
+        if activo is None or not proyectos:
+            self._rellenar_selector([])
             for tarjeta in self._metricas.values():
                 tarjeta.establecer("—", "Sin proyecto")
             for grafico in (self._grafico_dias, self._grafico_semanas, self._grafico_meses):
@@ -140,16 +157,30 @@ class VistaEstadisticas(VistaBase):
             self._tarjeta_atencion.setVisible(False)
             return
 
+        # Cambiar de proyecto en la barra lateral reenfoca las estadisticas en
+        # ese proyecto; elegir otro en el selector solo cambia esta vista.
+        validos = {p.id for p in proyectos}
+        if activo.id != self._activo_visto:
+            self._activo_visto = activo.id
+            self._seleccion = activo.id
+        elif self._seleccion != _CONSOLIDADO and self._seleccion not in validos:
+            self._seleccion = activo.id
+        self._rellenar_selector(proyectos)
+
+        consolidado = self._seleccion == _CONSOLIDADO
+        ids = [p.id for p in proyectos] if consolidado else [self._seleccion]
+        sujeto = "consolidado" if consolidado else "del proyecto"
+
         hoy = date.today()
-        estudio = self.contexto.estadisticas.resumen(proyecto.id, hoy)
-        por_dia = self.contexto.estadisticas.por_dia(proyecto.id, _DIAS_GRAFICO, hoy)
+        estudio = self.contexto.estadisticas.resumen_varios(ids, hoy)
+        por_dia = self.contexto.estadisticas.por_dia_varios(ids, _DIAS_GRAFICO, hoy)
 
         activos = [s for _, s in por_dia if s > 0]
         self._metricas["total"].establecer(
-            formato.horas(estudio.segundos_total), "Historico del proyecto"
+            formato.horas(estudio.segundos_total), f"Historico {sujeto}"
         )
         self._metricas["pomodoros"].establecer(
-            str(self.contexto.sesiones.contar_pomodoros(proyecto.id)), "Sesiones completadas"
+            str(self.contexto.estadisticas.pomodoros_varios(ids)), "Sesiones completadas"
         )
         self._metricas["racha"].establecer(
             str(estudio.racha), "Dias seguidos" if estudio.racha != 1 else "Dia seguido"
@@ -158,25 +189,54 @@ class VistaEstadisticas(VistaBase):
             formato.horas(round(sum(activos) / len(activos)) if activos else 0),
             f"En los {len(activos)} dias con estudio",
         )
-        self._pintar_cumplimiento(proyecto.id)
+        self._pintar_cumplimiento(ids)
 
         self._grafico_dias.establecer(
             [(f"{dia.day}", segundos / 3600) for dia, segundos in por_dia]
         )
-        self._grafico_semanas.establecer(self._por_semana(proyecto.id, hoy))
-        self._grafico_meses.establecer(self._por_mes(proyecto.id, hoy))
+        self._grafico_semanas.establecer(self._por_semana(ids, hoy))
+        self._grafico_meses.establecer(self._por_mes(ids, hoy))
 
-        # Las dos consultas alimentan dos tarjetas: se piden una sola vez.
-        por_materia = self.contexto.sesiones.segundos_por_materia(proyecto.id)
-        sin_clasificar = self.contexto.sesiones.segundos_sin_clasificar(proyecto.id)
-        avance = self.contexto.progreso.resumen(proyecto.id)
-        self._pintar_materias(avance, por_materia, sin_clasificar)
-        self._pintar_atencion(avance, por_materia, sin_clasificar)
+        # Materias y pesos son de cada proyecto: no se pueden sumar entre ellos.
+        self._tarjeta_materias.setVisible(not consolidado)
+        if consolidado:
+            vaciar(self._caja_materias)
+            vaciar(self._caja_atencion)
+            self._tarjeta_atencion.setVisible(False)
+        else:
+            proyecto_id = ids[0]
+            # Las dos consultas alimentan dos tarjetas: se piden una sola vez.
+            por_materia = self.contexto.sesiones.segundos_por_materia(proyecto_id)
+            sin_clasificar = self.contexto.sesiones.segundos_sin_clasificar(proyecto_id)
+            avance = self.contexto.progreso.resumen(proyecto_id)
+            self._pintar_materias(avance, por_materia, sin_clasificar)
+            self._pintar_atencion(avance, por_materia, sin_clasificar)
         self._pintar_proyectos()
 
-    def _pintar_cumplimiento(self, proyecto_id: int) -> None:
-        """% de dias y de horas planeadas que no se cumplieron, de este proyecto."""
-        resumen = self.contexto.calendario.resumen_cumplimiento(proyecto_id)
+    def _rellenar_selector(self, proyectos: list[Proyecto]) -> None:
+        """Lista «Consolidado» y cada proyecto, con la seleccion actual marcada."""
+        self._selector.blockSignals(True)
+        self._selector.clear()
+        if proyectos:
+            self._selector.addItem("Consolidado (todos)", _CONSOLIDADO)
+            for proyecto in proyectos:
+                self._selector.addItem(proyecto.nombre, proyecto.id)
+            indice = self._selector.findData(self._seleccion)
+            self._selector.setCurrentIndex(max(indice, 0))
+        self._selector.setEnabled(bool(proyectos))
+        self._selector.blockSignals(False)
+
+    def _al_elegir(self, _indice: int) -> None:
+        dato = self._selector.currentData()
+        if dato is None or dato == self._seleccion:
+            return
+        self._seleccion = int(dato)
+        self.marcar_sucia()
+        self.refrescar_si_hace_falta()
+
+    def _pintar_cumplimiento(self, proyecto_ids: list[int]) -> None:
+        """% de dias y de horas planeadas que no se cumplieron."""
+        resumen = self.contexto.calendario.resumen_cumplimiento_varios(proyecto_ids)
         if not resumen.dias_con_plan:
             self._metricas["dias_incumplidos"].establecer("—", "Sin bloques planeados")
             self._metricas["horas_incumplidas"].establecer("—", "Sin bloques planeados")
@@ -192,14 +252,14 @@ class VistaEstadisticas(VistaBase):
             f"{formato.horas(resumen.segundos_planeados)} planeadas",
         )
 
-    def _por_semana(self, proyecto_id: int, hoy: date) -> list[tuple[str, float]]:
+    def _por_semana(self, proyecto_ids: list[int], hoy: date) -> list[tuple[str, float]]:
         """Horas de las ultimas semanas, de lunes a domingo."""
         lunes = hoy - timedelta(days=hoy.weekday())
         primero = lunes - timedelta(weeks=_SEMANAS - 1)
         # Una consulta para todo el rango y se agrupa por semana aqui: antes era
         # una consulta por barra.
-        por_dia = self.contexto.sesiones.segundos_por_dia(
-            proyecto_id, primero.isoformat(), (lunes + timedelta(days=6)).isoformat()
+        por_dia = self.contexto.estadisticas.segundos_por_dia_varios(
+            proyecto_ids, primero.isoformat(), (lunes + timedelta(days=6)).isoformat()
         )
         semanas = [0] * _SEMANAS
         for fecha, segundos in por_dia.items():
@@ -211,7 +271,7 @@ class VistaEstadisticas(VistaBase):
             )
         ]
 
-    def _por_mes(self, proyecto_id: int, hoy: date) -> list[tuple[str, float]]:
+    def _por_mes(self, proyecto_ids: list[int], hoy: date) -> list[tuple[str, float]]:
         """Horas de los ultimos meses naturales."""
         barras = []
         ano, mes = hoy.year, hoy.month
@@ -223,8 +283,8 @@ class VistaEstadisticas(VistaBase):
                 ano, mes = ano - 1, 12
 
         ano_min, mes_min = pendientes[-1]
-        por_mes = self.contexto.sesiones.segundos_por_periodo(
-            proyecto_id, date(ano_min, mes_min, 1).isoformat(), hoy.isoformat(), "%Y-%m"
+        por_mes = self.contexto.estadisticas.segundos_por_periodo_varios(
+            proyecto_ids, date(ano_min, mes_min, 1).isoformat(), hoy.isoformat(), "%Y-%m"
         )
         for ano_, mes_ in reversed(pendientes):
             inicio = date(ano_, mes_, 1)

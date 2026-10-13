@@ -468,6 +468,31 @@ def test_resumen_de_todo_el_historial_es_neto_y_arranca_en_el_primer_plan(
     assert resumen.segundos_faltantes == 0
 
 
+def test_consolidado_no_deja_que_un_proyecto_tape_las_horas_de_otro(
+    conn: sqlite3.Connection, proyecto: Proyecto
+) -> None:
+    otro = RepositorioProyectos(conn).crear("Otro")
+    RepositorioBloques(conn).crear(proyecto.id, DIA, duracion_min=60)
+    RepositorioBloques(conn).crear(otro.id, DIA, duracion_min=60)
+    inicio = datetime.combine(DIA, time(9, 0)).astimezone()
+    RepositorioSesiones(conn).crear(
+        proyecto.id,
+        tipo=TipoSesion.TRABAJO,
+        origen=OrigenSesion.POMODORO,
+        inicio=inicio,
+        fin=inicio + timedelta(hours=5),
+        duracion_seg=5 * 3600,
+    )
+
+    resumen = ServicioCalendario(conn).resumen_cumplimiento_varios(
+        [proyecto.id, otro.id]
+    )
+    assert resumen.dias_con_plan == 2
+    assert resumen.dias_incumplidos == 1
+    assert resumen.segundos_planeados == 7200
+    assert resumen.segundos_faltantes == 3600
+
+
 def test_sin_planes_el_resumen_no_incumple_nada(
     conn: sqlite3.Connection, proyecto: Proyecto
 ) -> None:

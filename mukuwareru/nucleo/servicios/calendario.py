@@ -367,6 +367,24 @@ class ServicioCalendario:
             planeados_seg += sum(c.planeado_seg for c in reparto.values())
         return ResumenCumplimiento(con_plan, cumplidos, planeados_seg, reales_seg)
 
+    def resumen_cumplimiento_varios(
+        self, proyecto_ids: list[int]
+    ) -> ResumenCumplimiento:
+        """Los resumenes de cada proyecto, sumados (el consolidado).
+
+        Un dia con plan en dos proyectos cuenta como dos dias planeados: cada
+        uno es un compromiso distinto. Las horas de mas de un proyecto no tapan
+        las que faltan en otro: de cada uno solo cuenta lo estudiado hasta lo
+        planeado.
+        """
+        partes = [self.resumen_cumplimiento(pid) for pid in proyecto_ids]
+        return ResumenCumplimiento(
+            sum(p.dias_con_plan for p in partes),
+            sum(p.dias_cumplidos for p in partes),
+            sum(p.segundos_planeados for p in partes),
+            sum(min(p.segundos_reales, p.segundos_planeados) for p in partes),
+        )
+
     def ultimo_incumplimiento(
         self, proyecto_id: int, hoy: date | None = None
     ) -> tuple[date, BloquePlan, Cumplimiento] | None:
