@@ -54,11 +54,19 @@ class DialogoEtiquetar(QDialog):
         columna.addWidget(pregunta)
 
         if materias:
+            self._todas = QCheckBox("Seleccionar todas")
+            self._todas.setCursor(Qt.CursorShape.PointingHandCursor)
+            # `clicked` solo salta con un clic del usuario: marcar las demas por
+            # codigo no vuelve a disparar esta casilla.
+            self._todas.clicked.connect(self._marcar_todas)
+            columna.addWidget(self._todas)
+
             caja = QVBoxLayout()
             caja.setSpacing(2)
             for materia in materias:
                 casilla = QCheckBox(materia.nombre)
                 casilla.setCursor(Qt.CursorShape.PointingHandCursor)
+                casilla.toggled.connect(self._sincronizar_todas)
                 self._casillas[materia.id] = casilla
                 caja.addWidget(casilla)
 
@@ -83,6 +91,14 @@ class DialogoEtiquetar(QDialog):
         omitir.clicked.connect(self.reject)
         guardar.clicked.connect(self.accept)
         columna.addWidget(botones)
+
+    def _marcar_todas(self, marcada: bool) -> None:
+        for casilla in self._casillas.values():
+            casilla.setChecked(marcada)
+
+    def _sincronizar_todas(self, _marcada: bool) -> None:
+        """«Seleccionar todas» refleja si de verdad lo estan todas."""
+        self._todas.setChecked(all(c.isChecked() for c in self._casillas.values()))
 
     @property
     def materias_elegidas(self) -> list[int]:

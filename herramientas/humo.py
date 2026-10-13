@@ -1341,6 +1341,23 @@ def _estadisticas(
     comprobar(vista._grafico_dias._grafico.series() != [], "el grafico diario tiene datos")
     comprobar(bool(vista._metricas["total"]), "las metricas se construyen")
 
+    # Dialogo de etiquetado: «Seleccionar todas» marca y desmarca todas.
+    from mukuwareru.ui.dialogos.etiquetar import DialogoEtiquetar
+
+    materias_dialogo = contexto.materias.listar(proyecto_id)
+    if materias_dialogo:
+        dialogo = DialogoEtiquetar(materias_dialogo, 600)
+        dialogo._todas.click()
+        comprobar(
+            len(dialogo.materias_elegidas) == len(materias_dialogo),
+            "seleccionar todas marca todas las materias",
+        )
+        dialogo._todas.click()
+        comprobar(not dialogo.materias_elegidas, "y al repetir las desmarca")
+        dialogo._todas.click()
+        dialogo._casillas[materias_dialogo[0].id].setChecked(False)
+        comprobar(not dialogo._todas.isChecked(), "quitar una desmarca «todas»")
+
     # Atencion por materia: solo aparece cuando el proyecto reparte pesos.
     comprobar(
         not vista._tarjeta_atencion.isVisible(),
