@@ -402,6 +402,42 @@ def test_resumen_cumplimiento_cuenta_dias_y_horas_incumplidas(
     assert resumen.pct_horas_incumplidas == 50.0
 
 
+def test_resumen_cumplimiento_no_castiga_estudiar_a_otra_hora(
+    conn: sqlite3.Connection, proyecto: Proyecto
+) -> None:
+    RepositorioBloques(conn).crear(
+        proyecto.id, DIA, hora_inicio="09:00", duracion_min=60
+    )
+    inicio = datetime.combine(DIA, time(15, 0)).astimezone()
+    RepositorioSesiones(conn).crear(
+        proyecto.id,
+        tipo=TipoSesion.TRABAJO,
+        origen=OrigenSesion.POMODORO,
+        inicio=inicio,
+        fin=inicio + timedelta(minutes=60),
+        duracion_seg=3600,
+    )
+
+    resumen = ServicioCalendario(conn).resumen_cumplimiento(proyecto.id, DIA, DIA)
+    assert resumen.dias_incumplidos == 0
+    assert resumen.segundos_faltantes == 0
+
+
+def test_resumen_cumplimiento_ignora_hoy_y_el_futuro(
+    conn: sqlite3.Connection, proyecto: Proyecto
+) -> None:
+    hoy = date.today()
+    bloques = RepositorioBloques(conn)
+    bloques.crear(proyecto.id, hoy, hora_inicio="23:00", duracion_min=60)
+    bloques.crear(proyecto.id, hoy + timedelta(days=1), duracion_min=60)
+
+    resumen = ServicioCalendario(conn).resumen_cumplimiento(
+        proyecto.id, hoy, hoy + timedelta(days=1)
+    )
+    assert resumen.dias_con_plan == 0
+    assert resumen.segundos_planeados == 0
+
+
 def test_sin_planes_el_resumen_no_incumple_nada(
     conn: sqlite3.Connection, proyecto: Proyecto
 ) -> None:

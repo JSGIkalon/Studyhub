@@ -174,7 +174,10 @@ def _cuenta_para(bloque: BloquePlan, sesion: Sesion) -> bool:
 
 
 def repartir_cumplimiento(
-    bloques: list[BloquePlan], sesiones: list[Sesion]
+    bloques: list[BloquePlan],
+    sesiones: list[Sesion],
+    *,
+    respetar_hora: bool = True,
 ) -> dict[int, Cumplimiento]:
     """Atribuye a cada bloque planeado el tiempo que de verdad se estudio.
 
@@ -189,18 +192,26 @@ def repartir_cumplimiento(
        doble del tiempo realmente estudiado.
     4. Los bloques **sin hora** se reparten lo que quede del dia, por ``id``.
 
+    Con ``respetar_hora=False`` la franja se ignora y todos los bloques se
+    reparten el tiempo del dia (regla 4): sirve para medir «¿estudie lo que
+    dije hoy?» sin castigar haber estudiado a otra hora.
+
     Es una funcion pura: mismos datos, mismo resultado, sin tocar la base.
     """
     restante = {sesion.id: sesion.duracion_seg for sesion in sesiones}
     resultado: dict[int, Cumplimiento] = {}
 
-    con_hora = sorted(
-        (b for b in bloques if _ventana(b) is not None),
-        key=lambda b: (b.hora_inicio or "", b.id),
-    )
-    sin_hora = sorted(
-        (b for b in bloques if _ventana(b) is None), key=lambda b: b.id
-    )
+    if respetar_hora:
+        con_hora = sorted(
+            (b for b in bloques if _ventana(b) is not None),
+            key=lambda b: (b.hora_inicio or "", b.id),
+        )
+        sin_hora = sorted(
+            (b for b in bloques if _ventana(b) is None), key=lambda b: b.id
+        )
+    else:
+        con_hora = []
+        sin_hora = sorted(bloques, key=lambda b: (b.hora_inicio or "", b.id))
 
     for bloque in con_hora:
         ventana = _ventana(bloque)
@@ -315,19 +326,32 @@ class ServicioCalendario:
     def resumen_cumplimiento(
         self, proyecto_id: int, desde: date, hasta: date
     ) -> ResumenCumplimiento:
-        """El porcentaje de dias y de horas en que no se cumplio lo planeado."""
+        """El porcentaje de dias y de horas en que no se cumplio lo planeado.
+
+        Cuenta el dia entero, no la hora del reloj: estudiar a otra hora que la
+        prevista sigue siendo cumplir. Y solo cuenta dias ya cerrados: lo
+        planeado para hoy o para el futuro aun no es un incumplimiento.
+        """
+        hasta = min(hasta, date.today() - timedelta(days=1))
+        if hasta < desde:
+            return ResumenCumplimiento(0, 0, 0, 0)
         dias = self.rango(proyecto_id, desde, hasta)
-        con_plan = [dia for dia in dias if dia.bloques]
-        cumplidos = sum(
-            1 for dia in con_plan if dia.bloques_cumplidos == len(dia.bloques)
-        )
-        planeados_seg = sum(
-            c.planeado_seg for dia in dias for c in dia.cumplimientos.values()
-        )
-        reales_seg = sum(
-            c.real_seg for dia in dias for c in dia.cumplimientos.values()
-        )
-        return ResumenCumplimiento(len(con_plan), cumplidos, planeados_seg, reales_seg)
+        con_plan = 0
+        cumplidos = 0
+        planeados_seg = 0
+        reales_seg = 0
+        for dia in dias:
+            if not dia.bloques:
+                continue
+            reparto = repartir_cumplimiento(
+                dia.bloques, dia.sesiones, respetar_hora=False
+            )
+            con_plan += 1
+            if all(c.cumplido for c in reparto.values()):
+                cumplidos += 1
+            planeados_seg += sum(c.planeado_seg for c in reparto.values())
+            reales_seg += sum(c.real_seg for c in reparto.values())
+        return ResumenCumplimiento(con_plan, cumplidos, planeados_seg, reales_seg)
 
     def ultimo_incumplimiento(
         self, proyecto_id: int, hoy: date | None = None
