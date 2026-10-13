@@ -158,7 +158,7 @@ class VistaEstadisticas(VistaBase):
             formato.horas(round(sum(activos) / len(activos)) if activos else 0),
             f"En los {len(activos)} dias con estudio",
         )
-        self._pintar_cumplimiento(proyecto.id, hoy)
+        self._pintar_cumplimiento(proyecto.id)
 
         self._grafico_dias.establecer(
             [(f"{dia.day}", segundos / 3600) for dia, segundos in por_dia]
@@ -174,11 +174,9 @@ class VistaEstadisticas(VistaBase):
         self._pintar_atencion(avance, por_materia, sin_clasificar)
         self._pintar_proyectos()
 
-    def _pintar_cumplimiento(self, proyecto_id: int, hoy: date) -> None:
-        """% de dias y de horas planeadas que no se cumplieron en los ultimos 30."""
-        resumen = self.contexto.calendario.resumen_cumplimiento(
-            proyecto_id, hoy - timedelta(days=_DIAS_GRAFICO - 1), hoy
-        )
+    def _pintar_cumplimiento(self, proyecto_id: int) -> None:
+        """% de dias y de horas planeadas que no se cumplieron, de este proyecto."""
+        resumen = self.contexto.calendario.resumen_cumplimiento(proyecto_id)
         if not resumen.dias_con_plan:
             self._metricas["dias_incumplidos"].establecer("—", "Sin bloques planeados")
             self._metricas["horas_incumplidas"].establecer("—", "Sin bloques planeados")
@@ -190,7 +188,8 @@ class VistaEstadisticas(VistaBase):
         )
         self._metricas["horas_incumplidas"].establecer(
             f"{resumen.pct_horas_incumplidas:.0f} %",
-            f"{formato.horas(resumen.segundos_faltantes)} sin estudiar de lo planeado",
+            f"{formato.horas(resumen.segundos_faltantes)} de "
+            f"{formato.horas(resumen.segundos_planeados)} planeadas",
         )
 
     def _por_semana(self, proyecto_id: int, hoy: date) -> list[tuple[str, float]]:

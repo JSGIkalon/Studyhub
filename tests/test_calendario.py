@@ -438,6 +438,36 @@ def test_resumen_cumplimiento_ignora_hoy_y_el_futuro(
     assert resumen.segundos_planeados == 0
 
 
+def test_resumen_de_todo_el_historial_es_neto_y_arranca_en_el_primer_plan(
+    conn: sqlite3.Connection, proyecto: Proyecto
+) -> None:
+    sesiones = RepositorioSesiones(conn)
+
+    def estudiar(dia: date, horas: int) -> None:
+        inicio = datetime.combine(dia, time(9, 0)).astimezone()
+        sesiones.crear(
+            proyecto.id,
+            tipo=TipoSesion.TRABAJO,
+            origen=OrigenSesion.POMODORO,
+            inicio=inicio,
+            fin=inicio + timedelta(hours=horas),
+            duracion_seg=horas * 3600,
+        )
+
+    estudiar(DIA - timedelta(days=5), 10)  # antes del plan: no cuenta a favor
+    bloques = RepositorioBloques(conn)
+    bloques.crear(proyecto.id, DIA, duracion_min=120)
+    bloques.crear(proyecto.id, DIA + timedelta(days=1), duracion_min=60)
+    estudiar(DIA, 3)  # el exceso de un dia compensa el hueco del siguiente
+
+    resumen = ServicioCalendario(conn).resumen_cumplimiento(proyecto.id)
+    assert resumen.dias_con_plan == 2
+    assert resumen.dias_incumplidos == 1
+    assert resumen.segundos_planeados == 3 * 3600
+    assert resumen.segundos_reales == 3 * 3600
+    assert resumen.segundos_faltantes == 0
+
+
 def test_sin_planes_el_resumen_no_incumple_nada(
     conn: sqlite3.Connection, proyecto: Proyecto
 ) -> None:

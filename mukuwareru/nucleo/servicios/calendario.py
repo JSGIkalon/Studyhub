@@ -324,15 +324,29 @@ class ServicioCalendario:
         return cumplidos, planeados
 
     def resumen_cumplimiento(
-        self, proyecto_id: int, desde: date, hasta: date
+        self,
+        proyecto_id: int,
+        desde: date | None = None,
+        hasta: date | None = None,
     ) -> ResumenCumplimiento:
-        """El porcentaje de dias y de horas en que no se cumplio lo planeado.
+        """Lo planeado frente a lo estudiado, de todo el historial del proyecto.
 
-        Cuenta el dia entero, no la hora del reloj: estudiar a otra hora que la
-        prevista sigue siendo cumplir. Y solo cuenta dias ya cerrados: lo
-        planeado para hoy o para el futuro aun no es un incumplimiento.
+        Sin ``desde`` arranca en el primer bloque planeado del proyecto —el
+        estudio anterior al plan no cuenta a favor—, y sin ``hasta`` termina
+        ayer: lo planeado para hoy o el futuro aun no es un incumplimiento.
+
+        Las **horas** son netas: planeado menos estudiado en el periodo, sin
+        importar a que hora ni en que dia. Los **dias** se miden uno a uno
+        (``repartir_cumplimiento`` sin franja horaria).
         """
-        hasta = min(hasta, date.today() - timedelta(days=1))
+        hasta = min(hasta or date.max, date.today() - timedelta(days=1))
+        if desde is None:
+            planeados = self._bloques.listar(
+                proyecto_id, date.min.isoformat(), date.max.isoformat()
+            )
+            if not planeados:
+                return ResumenCumplimiento(0, 0, 0, 0)
+            desde = min(bloque.fecha for bloque in planeados)
         if hasta < desde:
             return ResumenCumplimiento(0, 0, 0, 0)
         dias = self.rango(proyecto_id, desde, hasta)
@@ -341,6 +355,7 @@ class ServicioCalendario:
         planeados_seg = 0
         reales_seg = 0
         for dia in dias:
+            reales_seg += dia.segundos_estudiados
             if not dia.bloques:
                 continue
             reparto = repartir_cumplimiento(
@@ -350,7 +365,6 @@ class ServicioCalendario:
             if all(c.cumplido for c in reparto.values()):
                 cumplidos += 1
             planeados_seg += sum(c.planeado_seg for c in reparto.values())
-            reales_seg += sum(c.real_seg for c in reparto.values())
         return ResumenCumplimiento(con_plan, cumplidos, planeados_seg, reales_seg)
 
     def ultimo_incumplimiento(
